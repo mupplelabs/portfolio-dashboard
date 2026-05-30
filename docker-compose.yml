@@ -1,0 +1,20 @@
+version: '3.8'
+
+services:
+  streamlit-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: portfolio-dashboard
+    ports:
+      - "8501:8501"
+    volumes:
+      # This bind mount maps your local directory to the /app directory in the container.
+      # It allows you to edit app.py locally and see the changes live without rebuilding!
+      - .:/app
+    environment:
+      # Prevent python from writing pyc files to disc
+      - PYTHONDONTWRITEBYTECODE=1
+      # Prevent python from buffering stdout and stderr
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped

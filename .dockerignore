@@ -1,0 +1,21 @@
+# Ignore virtual environments
+.venv/
+venv/
+env/
+
+# Ignore Python cache files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Ignore local data or generated files
+*.csv
+*.pdf
+
+# Ignore Git files
+.git/
+.gitignore
+
+# Ignore environment variables (do not copy secrets into the image)
+.env

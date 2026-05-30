@@ -1,0 +1,10 @@
+streamlit
+pandas
+plotly
+yfinance
+google-genai
+requests
+markdown
+fpdf2
+st-copy-to-clipboard
+ddgs
