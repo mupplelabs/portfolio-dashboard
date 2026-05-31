@@ -306,7 +306,7 @@ def fetch_portfolio_history(df, period, fmp_key=None):
             dates = pd.date_range(end=end_date, periods=252, freq='B')
         hist_df = pd.DataFrame(index=dates)
     else:
-        hist_df = pd.concat(series_list, axis=1)
+        hist_df = pd.concat(series_list, axis=1, sort=False)
         hist_df = hist_df.ffill().bfill()
         
     portfolio_history = hist_df.sum(axis=1) if not hist_df.empty else pd.Series(0, index=hist_df.index)
@@ -325,9 +325,9 @@ def fetch_portfolio_history(df, period, fmp_key=None):
     
     result_individual = hist_df.melt(id_vars=['Datum'], var_name='Asset', value_name='Wert')
     
-    if pd.api.types.is_datetime64tz_dtype(result_total['Datum']):
+    if isinstance(result_total['Datum'].dtype, pd.DatetimeTZDtype):
         result_total['Datum'] = result_total['Datum'].dt.tz_localize(None)
-    if pd.api.types.is_datetime64tz_dtype(result_individual['Datum']):
+    if isinstance(result_individual['Datum'].dtype, pd.DatetimeTZDtype):
         result_individual['Datum'] = result_individual['Datum'].dt.tz_localize(None)
         
     return result_total, result_individual
@@ -1390,7 +1390,7 @@ with st.bottom:
                 use_web_search = st.checkbox("🌐 News & Webdaten", value=True)
             with cols[3]:
                 include_portfolio = st.checkbox("📊 Portfolio-Daten", value=True)
-            trigger_auto = st.button("Portfolio automatisch analysieren", type="primary", use_container_width=True)
+            trigger_auto = st.button("Portfolio automatisch analysieren", type="primary", width="stretch")
             use_chat_search = use_web_search
         else:
             trigger_auto = False
@@ -1403,10 +1403,10 @@ with st.bottom:
                     st.session_state.pdf_report_bytes = None
                     
                 if st.session_state.pdf_report_bytes:
-                    st.download_button(label="📥 PDF herunterladen", data=st.session_state.pdf_report_bytes, file_name="Portfolio_Gesamtreport.pdf", mime="application/pdf", use_container_width=True)
+                    st.download_button(label="📥 PDF herunterladen", data=st.session_state.pdf_report_bytes, file_name="Portfolio_Gesamtreport.pdf", mime="application/pdf", width="stretch")
                 else:
                     is_generating = len(st.session_state.chat_history) > 0 and st.session_state.chat_history[-1]['role'] == 'user'
-                    if st.button("📄 PDF generieren", use_container_width=True, disabled=is_generating):
+                    if st.button("📄 PDF generieren", width="stretch", disabled=is_generating):
                         with st.spinner("KI verfasst das Executive Summary..."):
                             summary_prompt = "Bitte verfasse ein professionelles, einseitiges Executive Summary aller Erkenntnisse und Handlungsempfehlungen aus unserem bisherigen Chat. Fasse die Risiken, Chancen und den Handlungsbedarf des Portfolios zusammen. Ignoriere irrelevantes Geplauder. Strukturiere es mit sauberen Markdown-Überschriften."
                             history_for_summary = st.session_state.chat_history.copy()
@@ -1437,7 +1437,7 @@ with st.bottom:
             st.checkbox("🌐 News & Webdaten", value=False, disabled=True)
         with cols[3]:
             st.checkbox("📊 Portfolio-Daten", value=False, disabled=True)
-        st.button("Portfolio automatisch analysieren", type="primary", use_container_width=True, disabled=True)
+        st.button("Portfolio automatisch analysieren", type="primary", width="stretch", disabled=True)
 
 if len(st.session_state.chat_history) == 0:
     user_q = st.chat_input("...oder stelle direkt eine allgemeine oder spezifische Frage.", key="main_chat", disabled=not is_ready)
@@ -1607,7 +1607,7 @@ if len(st.session_state.chat_history) > 0 and st.session_state.chat_history[-1][
                     st.session_state.gemini_error = True
 if len(st.session_state.chat_history) > 0:
     st.divider()
-    if st.button("Chat & Analyse zurücksetzen", type="secondary", use_container_width=True):
+    if st.button("Chat & Analyse zurücksetzen", type="secondary", width="stretch"):
         st.session_state.chat_history = []
         st.session_state.gemini_error = False
         st.rerun()
