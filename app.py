@@ -348,31 +348,9 @@ def generate_search_context(llm_config, prompt_text, is_portfolio_analysis=False
     import requests
     import json
     import re
+    from prompts import get_search_context_prompt
     
-    if is_portfolio_analysis:
-        system_instruction = (
-            "Du bist ein intelligenter Research-Agent. Deine Aufgabe ist es, für das folgende Anlage-Portfolio die 2-3 wichtigsten "
-            "Suchbegriffe für eine detaillierte Marktrecherche (z.B. spezielle Branchen-Trends, Sektor-News) und die 2-3 wichtigsten "
-            "Ticker-Symbole (z.B. AAPL, NVDA) für eine Abfrage der Echtzeitkurse abzuleiten.\n"
-            "Antworte AUSSCHLIESSLICH mit einem validen JSON-Objekt. Keine Erklärungen.\n"
-            "Format:\n"
-            "{\n"
-            "  \"web_queries\": [\"Tech Sektor Trends\", \"Zinswende Auswirkungen\"],\n"
-            "  \"tickers\": [\"NVDA\", \"AAPL\"]\n"
-            "}"
-        )
-        user_message = f"Generiere das Such-JSON für die Marktanalyse dieses Portfolios:\n\n{prompt_text}"
-    else:
-        system_instruction = (
-            "Du bist ein intelligenter Daten-Agent. Deine Aufgabe ist es, aus der Nachricht des Nutzers Suchparameter abzuleiten.\n"
-            "Antworte AUSSCHLIESSLICH mit einem validen JSON-Objekt. Keine Erklärungen, kein Markdown um das JSON.\n"
-            "Format:\n"
-            "{\n"
-            "  \"web_queries\": [\"Suchbegriff 1\", \"Suchbegriff 2\"],\n"
-            "  \"tickers\": [\"NVDA\", \"AAPL\"]  # WICHTIG: Ermittle zwingend das korrekte, offizielle Aktienkürzel (z.B. NVIDIA -> NVDA). Nur ausfüllen, wenn spezifische Unternehmen/Aktien genannt werden.\n"
-            "}"
-        )
-        user_message = f"Generiere das Such-JSON für diese Anfrage:\n\n{prompt_text}"
+    system_instruction, user_message = get_search_context_prompt(prompt_text, is_portfolio_analysis)
     
     headers = {"Content-Type": "application/json"}
     if llm_config.get('api_key'):
@@ -448,7 +426,7 @@ def fetch_custom_web_search(queries, include_macro=True):
             if results:
                 context_lines.append("- Globale Makroökonomie (Zinsen, Inflation):")
                 for r in results:
-                    context_lines.append(f"  * {r['title']}: {r['body'][:150]}...")
+                    context_lines.append(f"  * {r['title']} (Quelle: {r.get('href', '')}): {r['body'][:150]}...")
     except:
         pass
         
@@ -460,7 +438,7 @@ def fetch_custom_web_search(queries, include_macro=True):
                 if results:
                     context_lines.append(f"- Websuche für '{q}':")
                     for r in results:
-                        context_lines.append(f"  * {r['title']}: {r['body'][:150]}...")
+                        context_lines.append(f"  * {r['title']} (Quelle: {r.get('href', '')}): {r['body'][:150]}...")
         except Exception as e:
             if "429" in str(e) or "RateLimit" in str(e):
                 return "RATE_LIMIT"
@@ -486,7 +464,7 @@ def fetch_ticker_live_data(tickers):
             
             news = ticker.news
             if news:
-                headlines = [n['title'] for n in news[:2] if 'title' in n]
+                headlines = [f"{n['title']} (URL: {n.get('link', '')})" for n in news[:2] if 'title' in n]
                 if headlines:
                     lines.append(f"  * {t} News: " + " | ".join(headlines))
         except:
@@ -516,7 +494,7 @@ def fetch_market_context(df):
             try:
                 news = yf.Ticker(ticker).news
                 if news:
-                    headlines = [n['title'] for n in news[:3] if 'title' in n]
+                    headlines = [f"{n['title']} (URL: {n.get('link', '')})" for n in news[:3] if 'title' in n]
                     if headlines:
                         context_lines.append(f"- {ticker} News: " + " | ".join(headlines))
             except:
@@ -535,7 +513,7 @@ def fetch_market_context(df):
                 if results:
                     context_lines.append("- Spezifische Markttrends (Web):")
                     for r in results:
-                        context_lines.append(f"  * {r['title']}: {r['body'][:150]}...")
+                        context_lines.append(f"  * {r['title']} (Quelle: {r.get('href', '')}): {r['body'][:150]}...")
         except:
             pass
             
@@ -547,7 +525,7 @@ def fetch_market_context(df):
             if results:
                 context_lines.append("- Globale Makroökonomie (Zinsen, Inflation, Krisen):")
                 for r in results:
-                    context_lines.append(f"  * {r['title']}: {r['body'][:150]}...")
+                    context_lines.append(f"  * {r['title']} (Quelle: {r.get('href', '')}): {r['body'][:150]}...")
     except:
         pass
         
@@ -555,7 +533,7 @@ def fetch_market_context(df):
     try:
         news_sp500 = yf.Ticker("^GSPC").news
         if news_sp500:
-            headlines = [n['title'] for n in news_sp500[:3] if 'title' in n]
+            headlines = [f"{n['title']} (URL: {n.get('link', '')})" for n in news_sp500[:3] if 'title' in n]
             if headlines:
                 context_lines.append(f"- Leitindizes (S&P 500) News: " + " | ".join(headlines))
     except:
@@ -580,7 +558,7 @@ def fetch_chat_search_context(query):
             results = list(ddgs.text(search_query, max_results=3))
             if results:
                 for r in results:
-                    context_lines.append(f"- {r['title']}: {r['body'][:200]}...")
+                    context_lines.append(f"- {r['title']} (Quelle: {r.get('href', 'Unbekannt')}): {r['body'][:200]}...")
     except:
         pass
     return "\n".join(context_lines) if context_lines else ""
@@ -738,19 +716,9 @@ def export_full_report_to_pdf(portfolio_df, gesamtwert, summary_text):
 def get_llm_response_stream(config, history, use_google_grounding=False, retries=1):
     import time
     import json
-    system_instruction = (
-        "Du bist ein risikobewusster, rationaler Honorar-Finanzberater. Analysiere das übergebene Portfolio kritisch. "
-        "Achte besonders auf Klumpenrisiken (z.B. zu viel Tech, zu viel USA), mangelnde Diversifikation oder überteuerte Fonds. "
-        "Gib strukturierte Handlungsempfehlungen (z.B. Umschichten, Halten, Zukaufen), begründe diese mathematisch/wirtschaftlich "
-        "und füge am Ende deiner Analysen immer einen rechtlichen Disclaimer hinzu, dass dies keine Anlageberatung ist.\n\n"
-        "WICHTIG: Antworte AUSSCHLIESSLICH auf Deutsch. Formatiere deine Antwort übersichtlich und ansprechend mit Markdown "
-        "(Überschriften, Aufzählungszeichen, Fettdruck). Gib KEINE internen Gedankengänge oder englischen Texte aus, sondern "
-        "präsentiere direkt die finale, professionelle Antwort.\n\n"
-        "VERHALTENSREGELN FÜR DEN CHAT:\n"
-        "- Dir werden vom System regelmäßig top-aktuelle Marktdaten (News/Websuche) im Prompt übergeben. Beziehe diese aktuellen Daten (z.B. Zinsentscheide, Inflation, Marktstimmung) AKTIV in deine initialen Portfolio-Bewertungen und Handlungsempfehlungen mit ein. Wenn der Nutzer spezifisch nach News fragt, behaupte NIEMALS, dass du keinen Zugriff auf Live-Daten hast, sondern nutze diesen übergebenen Kontext.\n"
-        "- Wenn der Nutzer sich bedankt (z.B. 'ok danke', 'danke'), antworte einfach kurz, freundlich und natürlich (z.B. 'Gern geschehen! Haben Sie noch weitere Fragen zu Ihrem Portfolio?'). In diesem Fall ist kein Disclaimer nötig.\n"
-        "- Wenn der Nutzer Fragen stellt, die nichts mit Finanzen, Börse, oder seinem Portfolio zu tun haben, lehne die Beantwortung höflich ab und weise darauf hin, dass du als Honorar-Finanzberater ausschließlich für Anlage- und Finanzthemen zuständig bist."
-    )
+    from prompts import get_advisor_system_prompt
+    
+    system_instruction = get_advisor_system_prompt()
     
     for attempt in range(retries + 1):
         try:
@@ -1431,7 +1399,8 @@ with st.bottom:
                     is_generating = len(st.session_state.chat_history) > 0 and st.session_state.chat_history[-1]['role'] == 'user'
                     if st.button("📄 PDF generieren", width="stretch", disabled=is_generating):
                         with st.spinner("KI verfasst das Executive Summary..."):
-                            summary_prompt = "Bitte verfasse ein professionelles, einseitiges Executive Summary aller Erkenntnisse und Handlungsempfehlungen aus unserem bisherigen Chat. Fasse die Risiken, Chancen und den Handlungsbedarf des Portfolios zusammen. Ignoriere irrelevantes Geplauder. Strukturiere es mit sauberen Markdown-Überschriften."
+                            from prompts import get_summary_prompt
+                            summary_prompt = get_summary_prompt()
                             history_for_summary = st.session_state.chat_history.copy()
                             history_for_summary.append({"role": "user", "content": summary_prompt})
                             
@@ -1488,9 +1457,8 @@ if trigger_auto or user_q:
     portfolio_text = prepare_anonymized_portfolio_data(st.session_state.portfolio_df, gesamtwert)
     
     if trigger_auto:
-        initial_prompt = "Bitte analysiere das folgende Portfolio als Finanzberater. Identifiziere Klumpenrisiken, fehlende Diversifikation und gib konkrete Handlungsempfehlungen.\n\n"
-        if include_portfolio:
-            initial_prompt += portfolio_text
+        from prompts import get_auto_analysis_initial_prompt
+        initial_prompt = get_auto_analysis_initial_prompt(portfolio_text if include_portfolio else "")
         display_q = "Portfolio automatisch analysieren"
         
         if use_web_search:
