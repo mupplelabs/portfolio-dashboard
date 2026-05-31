@@ -61,5 +61,12 @@ Das Verzeichnis ist als Volume in `docker-compose.yml` eingebunden, sodass Ände
 2. **API Keys eintragen (optional):** Gib deine API-Schlüssel für Google Gemini, Anthropic oder Financial Modeling Prep in der Seitenleiste ein, um erweiterte Funktionen freizuschalten.
 3. **Analysieren:** Betrachte die interaktiven Charts, überprüfe die aktuelle Marktlage und chatte mit dem KI-Berater über Optimierungspotenziale deines Portfolios.
 
+## Lizenzen & Drittanbieter 📄
+
+Dieses Projekt steht unter der [MIT-Lizenz](LICENSE.md).
+
+Zusätzlich verwendet dieses Projekt Ressourcen von Drittanbietern:
+- **Fonts:** Die in dieser Anwendung verwendeten Schriften (z.B. Google Fonts) unterliegen ihren jeweiligen Lizenzen (in der Regel die [SIL Open Font License](https://scripts.sil.org/OFL)).
+
 ## Hinweis / Disclaimer ⚠️
 Dies ist ein Tool zur Analyse und Visualisierung. Der integrierte KI-Assistent simuliert einen Finanzberater, stellt jedoch **keine rechtliche oder bindende Anlageberatung** dar. Investitionen in Wertpapiere bergen Risiken. Alle Entscheidungen triffst du auf eigene Verantwortung.
