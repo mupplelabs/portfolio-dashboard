@@ -66,14 +66,24 @@ if 'gemini_error' not in st.session_state:
     st.session_state.gemini_error = False
 
 import os
-if 'gemini_api_key' not in st.session_state:
+if 'env_defaults_loaded' not in st.session_state:
     st.session_state.gemini_api_key = os.environ.get('GEMINI_API_KEY', '')
-if 'claude_api_key' not in st.session_state:
     st.session_state.claude_api_key = os.environ.get('CLAUDE_API_KEY', '')
-if 'local_base_url' not in st.session_state:
     st.session_state.local_base_url = os.environ.get('LOCAL_LLM_URL', 'http://localhost:11434/v1')
-if 'local_api_key' not in st.session_state:
     st.session_state.local_api_key = os.environ.get('LOCAL_LLM_KEY', '')
+    
+    st.session_state._backup_gemini = st.session_state.gemini_api_key
+    st.session_state._backup_claude = st.session_state.claude_api_key
+    st.session_state._backup_url = st.session_state.local_base_url
+    st.session_state._backup_local_key = st.session_state.local_api_key
+    
+    st.session_state.env_defaults_loaded = True
+
+# Restore from backup if Streamlit deleted the widget key due to dropdown switch
+if 'gemini_api_key' not in st.session_state: st.session_state.gemini_api_key = st.session_state.get('_backup_gemini', '')
+if 'claude_api_key' not in st.session_state: st.session_state.claude_api_key = st.session_state.get('_backup_claude', '')
+if 'local_base_url' not in st.session_state: st.session_state.local_base_url = st.session_state.get('_backup_url', 'http://localhost:11434/v1')
+if 'local_api_key' not in st.session_state: st.session_state.local_api_key = st.session_state.get('_backup_local_key', '')
 
 # --- Funktionen ---
 import requests
@@ -307,6 +317,7 @@ def fetch_portfolio_history(df, period, fmp_key=None):
         hist_df = pd.DataFrame(index=dates)
     else:
         hist_df = pd.concat(series_list, axis=1, sort=False)
+        hist_df = hist_df.sort_index()
         hist_df = hist_df.ffill().bfill()
         
     portfolio_history = hist_df.sum(axis=1) if not hist_df.empty else pd.Series(0, index=hist_df.index)
@@ -1292,12 +1303,12 @@ _provider = st.session_state.get("llm_provider_input", "Google Gemini")
 _api_key = ""
 _base_url = None
 if _provider == "Google Gemini":
-    _api_key = st.session_state.get("gemini_api_key", "")
+    _api_key = st.session_state.get("_backup_gemini", "")
 elif _provider == "Anthropic Claude":
-    _api_key = st.session_state.get("claude_api_key", "")
+    _api_key = st.session_state.get("_backup_claude", "")
 else:
-    _api_key = st.session_state.get("local_api_key", "")
-    _base_url = st.session_state.get("local_base_url", "http://localhost:11434/v1")
+    _api_key = st.session_state.get("_backup_local_key", "")
+    _base_url = st.session_state.get("_backup_url", "http://localhost:11434/v1")
 _model = st.session_state.get("llm_model_input", None)
 if not _model:
     if _provider == "Google Gemini": _model = "gemini-2.5-flash"
@@ -1355,18 +1366,30 @@ with st.bottom:
             with st.expander("🤖 KI Provider & Keys", expanded=True):
                 llm_provider = st.selectbox("LLM Provider", ["Google Gemini", "Anthropic Claude", "OpenAI / Local"], key="llm_provider_input")
                 if llm_provider == "Google Gemini":
-                    gemini_api_key = st.text_input("Gemini API Key", type="password", key="gemini_api_key")
-                    current_api_key = gemini_api_key
+                    gemini_api_key = st.text_input("Gemini API Key", type="password", value=st.session_state._backup_gemini)
+                    if gemini_api_key != st.session_state._backup_gemini:
+                        st.session_state._backup_gemini = gemini_api_key
+                        st.rerun()
+                    current_api_key = st.session_state._backup_gemini
                     current_base_url = None
                 elif llm_provider == "Anthropic Claude":
-                    claude_api_key = st.text_input("Claude API Key", type="password", key="claude_api_key")
-                    current_api_key = claude_api_key
+                    claude_api_key = st.text_input("Claude API Key", type="password", value=st.session_state._backup_claude)
+                    if claude_api_key != st.session_state._backup_claude:
+                        st.session_state._backup_claude = claude_api_key
+                        st.rerun()
+                    current_api_key = st.session_state._backup_claude
                     current_base_url = None
                 else:
-                    local_base_url = st.text_input("API Base URL", value="http://localhost:11434/v1", key="local_base_url")
-                    local_api_key = st.text_input("API Key (Optional)", type="password", key="local_api_key")
-                    current_api_key = local_api_key
-                    current_base_url = local_base_url
+                    local_base_url = st.text_input("API Base URL", value=st.session_state._backup_url)
+                    if local_base_url != st.session_state._backup_url:
+                        st.session_state._backup_url = local_base_url
+                        st.rerun()
+                    local_api_key = st.text_input("API Key (Optional)", type="password", value=st.session_state._backup_local_key)
+                    if local_api_key != st.session_state._backup_local_key:
+                        st.session_state._backup_local_key = local_api_key
+                        st.rerun()
+                    current_api_key = st.session_state._backup_local_key
+                    current_base_url = st.session_state._backup_url
             with st.expander("📈 Datenquelle", expanded=True):
                 fmp_api_key = st.text_input("FMP API Key (Optional)", type="password", key="fmp_api_key_input")
                 st.session_state.fmp_api_key = fmp_api_key

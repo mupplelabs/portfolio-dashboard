@@ -12,12 +12,14 @@ services:
       # This bind mount maps your local directory to the /app directory in the container.
       # It allows you to edit app.py locally and see the changes live without rebuilding!
       - .:/app
+    env_file:
+      - .env
     environment:
       # Prevent python from writing pyc files to disc
       - PYTHONDONTWRITEBYTECODE=1
       # Prevent python from buffering stdout and stderr
       - PYTHONUNBUFFERED=1
-      # LLM API Keys and Endpoints (Defaults)
+      # Explicitly declared for Synology Container Manager GUI parsing
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}
       - CLAUDE_API_KEY=${CLAUDE_API_KEY:-}
       - LOCAL_LLM_URL=${LOCAL_LLM_URL:-http://localhost:11434/v1}

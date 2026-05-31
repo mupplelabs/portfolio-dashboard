@@ -22,3 +22,7 @@ __pycache__/
 
 # Secrets / Environment variables
 .env
+env.txt
+
+# MacOS
+.DS_Store
