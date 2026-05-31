@@ -17,4 +17,9 @@ services:
       - PYTHONDONTWRITEBYTECODE=1
       # Prevent python from buffering stdout and stderr
       - PYTHONUNBUFFERED=1
+      # LLM API Keys and Endpoints (Defaults)
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - CLAUDE_API_KEY=${CLAUDE_API_KEY:-}
+      - LOCAL_LLM_URL=${LOCAL_LLM_URL:-http://localhost:11434/v1}
+      - LOCAL_LLM_KEY=${LOCAL_LLM_KEY:-}
     restart: unless-stopped

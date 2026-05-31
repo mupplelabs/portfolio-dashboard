@@ -65,6 +65,16 @@ if 'chat_history' not in st.session_state:
 if 'gemini_error' not in st.session_state:
     st.session_state.gemini_error = False
 
+import os
+if 'gemini_api_key' not in st.session_state:
+    st.session_state.gemini_api_key = os.environ.get('GEMINI_API_KEY', '')
+if 'claude_api_key' not in st.session_state:
+    st.session_state.claude_api_key = os.environ.get('CLAUDE_API_KEY', '')
+if 'local_base_url' not in st.session_state:
+    st.session_state.local_base_url = os.environ.get('LOCAL_LLM_URL', 'http://localhost:11434/v1')
+if 'local_api_key' not in st.session_state:
+    st.session_state.local_api_key = os.environ.get('LOCAL_LLM_KEY', '')
+
 # --- Funktionen ---
 import requests
 
