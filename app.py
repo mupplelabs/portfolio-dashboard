@@ -801,15 +801,20 @@ def get_llm_response_stream(config, history, use_google_grounding=False, retries
                         
                     messages.append({"role": role, "content": content_to_send})
                     
-                # Führe Cache-Control für die letzte Nachricht hinzu
-                if messages:
-                    messages[-1]["content"] = [
-                        {
-                            "type": "text",
-                            "text": messages[-1]["content"],
-                            "cache_control": {"type": "ephemeral"}
-                        }
-                    ]
+                # Füge Cache-Control zu den letzten zwei Nutzer-Nachrichten hinzu (für optimale Multi-Turn Caches)
+                cache_slots = 0
+                for i in range(len(messages) - 1, -1, -1):
+                    if messages[i]["role"] == "user":
+                        messages[i]["content"] = [
+                            {
+                                "type": "text",
+                                "text": messages[i]["content"],
+                                "cache_control": {"type": "ephemeral"}
+                            }
+                        ]
+                        cache_slots += 1
+                        if cache_slots >= 2: # Max 2 User-Nachrichten cachen (plus System = 3 Slots)
+                            break
                     
                 payload = {
                     "model": config.get('model', 'claude-sonnet-4-6'),
@@ -824,6 +829,7 @@ def get_llm_response_stream(config, history, use_google_grounding=False, retries
                 response.raise_for_status()
                 
                 def claude_gen(resp):
+                    cache_stats = {"creation": 0, "read": 0}
                     try:
                         with resp:
                             for line in resp.iter_lines():
@@ -835,7 +841,11 @@ def get_llm_response_stream(config, history, use_google_grounding=False, retries
                                             continue
                                         try:
                                             data = json.loads(data_str)
-                                            if data.get('type') == 'content_block_delta' and data.get('delta', {}).get('type') == 'text_delta':
+                                            if data.get('type') == 'message_start':
+                                                usage = data.get('message', {}).get('usage', {})
+                                                cache_stats["creation"] = usage.get('cache_creation_input_tokens', 0)
+                                                cache_stats["read"] = usage.get('cache_read_input_tokens', 0)
+                                            elif data.get('type') == 'content_block_delta' and data.get('delta', {}).get('type') == 'text_delta':
                                                 yield data['delta']['text']
                                         except Exception:
                                             pass
