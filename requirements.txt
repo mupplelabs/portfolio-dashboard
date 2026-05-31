@@ -5,6 +5,6 @@ yfinance
 google-genai
 requests
 markdown
-fpdf2
+reportlab
 st-copy-to-clipboard
 ddgs

@@ -589,153 +589,23 @@ def fetch_chat_search_context(query):
     return "\n".join(context_lines) if context_lines else ""
 
 def clean_for_pdf(text):
+    import html
+    text = html.unescape(text)
     text = text.replace('€', 'EUR')
     return text.encode('latin-1', 'ignore').decode('latin-1')
 
 @st.cache_data(show_spinner=False)
 def export_text_to_pdf(text):
-    import markdown
-    from fpdf import FPDF
-    md_html = markdown.markdown(text, extensions=['tables'])
-    md_html = md_html.replace('<table>', '<table border="1" width="100%">')
-    md_html = md_html.replace('<th>', '<th bgcolor="#ecf0f1">')
-    
-    full_html = f"""
-    <h1 align="center">KI Antwort</h1>
-    <br>
-    {md_html}
-    """
-    clean_html = clean_for_pdf(full_html)
-    import re
-    # Remove emojis and high unicode symbols that break default FPDF fonts
-    # Keep ASCII, Latin-1, Latin Extended-A, Euro sign, smart quotes, dashes
-    clean_html = re.sub(r'[^\x00-\x7F\xA0-\xFF\u0100-\u017F\u20AC\u2018-\u201D\u2013\u2014]', '', clean_html)
-    
-    pdf = FPDF()
-    pdf.add_page()
+    from pdf_export import export_text_to_pdf_reportlab
     try:
-        pdf.write_html(clean_html)
-        import warnings
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            pdf_bytes = bytes(pdf.output(dest='S'))
-        return pdf_bytes
+        return export_text_to_pdf_reportlab(text)
     except Exception as e:
-        print("PDF HTML Error:", e)
-        # Fallback auf reinen Text ohne Formatierung
-        try:
-            pdf = FPDF()
-            pdf.add_page()
-            import re
-            plain_text = re.sub('<[^<]+>', '', full_html)
-            plain_text = clean_for_pdf(plain_text)
-            plain_text = re.sub(r'[^\x00-\x7F\xA0-\xFF\u0100-\u017F\u20AC\u2018-\u201D\u2013\u2014]', '', plain_text)
-            pdf.set_font("Helvetica", size=11)
-            pdf.multi_cell(0, 5, plain_text)
-            return bytes(pdf.output(dest='S'))
-        except Exception as e2:
-            print("PDF Fallback Error:", e2)
-            return None
+        print("PDF Export Error:", e)
+        return None
 
-def export_full_report_to_pdf(portfolio_df, gesamtwert, summary_text):
-    import markdown
-    import tempfile
-    import os
-    import plotly.express as px
-    from fpdf import FPDF
-    
-    # 1. Generate Chart Image
-    fig = px.pie(
-        portfolio_df, 
-        values='_Plot_Wert' if '_Plot_Wert' in portfolio_df.columns else 'Wert', 
-        names='Wertpapier', 
-        hole=0.4,
-        color_discrete_sequence=px.colors.qualitative.Pastel
-    )
-    fig.update_layout(
-        showlegend=True,
-        paper_bgcolor='white',
-        plot_bgcolor='white',
-        font=dict(color='black')
-    )
-    
-    tmp_img_path = os.path.join(tempfile.gettempdir(), "portfolio_chart.png")
-    fig.write_image(tmp_img_path, width=600, height=400)
-    
-    # 2. Build HTML
-    # 2. Build HTML
-    full_html = f"""
-    <h1 align="center">Dein Portfolio Gesamtreport</h1>
-    <h2 align="center">Gesamtwert: {gesamtwert:,.2f} EUR</h2>
-    <br>
-    <div align="center">
-        <img src="{tmp_img_path}" width="400">
-    </div>
-    <br>
-    <h2>Aktuelle Positionen</h2>
-    <table border="1" width="100%">
-        <thead>
-            <tr>
-                <th bgcolor="#ecf0f1" width="40%"><b>Wertpapier</b></th>
-                <th bgcolor="#ecf0f1" width="20%"><b>Anteile</b></th>
-                <th bgcolor="#ecf0f1" width="20%"><b>Akt. Kurs</b></th>
-                <th bgcolor="#ecf0f1" width="20%"><b>Gesamtwert</b></th>
-            </tr>
-        </thead>
-        <tbody>
-"""
-    for _, row in portfolio_df.iterrows():
-        wp = row.get('Wertpapier', '')
-        ant = row.get('St_Nom', 0)
-        kurs = row.get('Aktueller Kurs', row.get('Ø Kaufkurs', 0))
-        wert = row.get('Akt. Wert', row.get('Wert', 0))
-        full_html += f'<tr><td>{wp}</td><td>{ant:,.2f}</td><td>{kurs:,.2f} EUR</td><td>{wert:,.2f} EUR</td></tr>'
-        
-    full_html += """
-        </tbody>
-    </table>
-    <br>
-    <h2>KI Executive Summary</h2>
-"""
-    # Generate Markdown and force table borders for FPDF
-    md_html = markdown.markdown(summary_text, extensions=['tables'])
-    md_html = md_html.replace('<table>', '<table border="1" width="100%">')
-    md_html = md_html.replace('<th>', '<th bgcolor="#ecf0f1">')
-    
-    full_html += md_html
-    
-    clean_html = clean_for_pdf(full_html)
-    import re
-    # Remove emojis and high unicode symbols that break default FPDF fonts
-    # Keep ASCII, Latin-1, Latin Extended-A, Euro sign, smart quotes, dashes
-    clean_html = re.sub(r'[^\x00-\x7F\xA0-\xFF\u0100-\u017F\u20AC\u2018-\u201D\u2013\u2014]', '', clean_html)
-    
-    pdf = FPDF()
-    pdf.add_page()
-    try:
-        pdf.write_html(clean_html)
-        pdf_bytes = bytes(pdf.output(dest='S'))
-    except Exception as e:
-        print('PDF Error:', e)
-        # Fallback auf reinen Text
-        try:
-            pdf = FPDF()
-            pdf.add_page()
-            import re
-            plain_text = re.sub('<[^<]+>', '', full_html)
-            plain_text = clean_for_pdf(plain_text)
-            plain_text = re.sub(r'[^\x00-\x7F\xA0-\xFF\u0100-\u017F\u20AC\u2018-\u201D\u2013\u2014]', '', plain_text)
-            pdf.set_font("Helvetica", size=11)
-            pdf.multi_cell(0, 5, plain_text)
-            pdf_bytes = bytes(pdf.output(dest='S'))
-        except Exception as e2:
-            print('PDF Fallback Error:', e2)
-            pdf_bytes = None
-    finally:
-        if os.path.exists(tmp_img_path):
-            os.remove(tmp_img_path)
-            
-    return pdf_bytes
+from pdf_export import generate_portfolio_pdf as export_full_report_to_pdf
+
+# fpdf removed
 
 
 def get_llm_response_stream(config, history, use_google_grounding=False, retries=1):
@@ -1434,7 +1304,9 @@ with st.bottom:
             with cols[3]:
                 if 'pdf_report_bytes' not in st.session_state:
                     st.session_state.pdf_report_bytes = None
-                    
+                
+                include_full_chat = st.checkbox("💬 Kompl. Chat anhängen", value=False)
+                
                 if st.session_state.pdf_report_bytes:
                     st.download_button(label="📥 PDF herunterladen", data=st.session_state.pdf_report_bytes, file_name="Portfolio_Gesamtreport.pdf", mime="application/pdf", width="stretch")
                 else:
@@ -1446,7 +1318,7 @@ with st.bottom:
                             history_for_summary = st.session_state.chat_history.copy()
                             history_for_summary.append({"role": "user", "content": summary_prompt})
                             
-                            summary_gen, err = get_llm_response_stream(llm_config, history_for_summary, use_google_grounding=False)
+                            summary_gen, err = get_llm_response_stream(llm_config, history_for_summary)
                             if summary_gen:
                                 summary_text = ""
                                 for chunk in summary_gen:
@@ -1454,7 +1326,7 @@ with st.bottom:
                                     status_container.markdown("### 📝 KI verfasst Executive Summary...\n" + summary_text)
                                     
                                 with st.spinner("Erzeuge PDF mit Diagramm und Tabelle..."):
-                                    pdf_bytes = export_full_report_to_pdf(st.session_state.portfolio_df, gesamtwert, summary_text)
+                                    pdf_bytes = export_full_report_to_pdf(st.session_state.portfolio_df, gesamtwert, summary_text, st.session_state.chat_history if include_full_chat else None)
                                     if pdf_bytes:
                                         st.session_state.pdf_report_bytes = pdf_bytes
                                         st.rerun()
