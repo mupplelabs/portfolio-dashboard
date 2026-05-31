@@ -374,8 +374,8 @@ def generate_search_context(llm_config, prompt_text, is_portfolio_analysis=False
         
         payload = {
             "model": llm_config.get('model', 'claude-3-5-sonnet-20240620'),
-            "system": system_instruction,
-            "messages": [{"role": "user", "content": user_message}],
+            "system": [{"type": "text", "text": system_instruction, "cache_control": {"type": "ephemeral"}}],
+            "messages": [{"role": "user", "content": [{"type": "text", "text": user_message, "cache_control": {"type": "ephemeral"}}]}],
             "max_tokens": 1024
         }
         url = "https://api.anthropic.com/v1/messages"
@@ -801,9 +801,19 @@ def get_llm_response_stream(config, history, use_google_grounding=False, retries
                         
                     messages.append({"role": role, "content": content_to_send})
                     
+                # Führe Cache-Control für die letzte Nachricht hinzu
+                if messages:
+                    messages[-1]["content"] = [
+                        {
+                            "type": "text",
+                            "text": messages[-1]["content"],
+                            "cache_control": {"type": "ephemeral"}
+                        }
+                    ]
+                    
                 payload = {
                     "model": config.get('model', 'claude-sonnet-4-6'),
-                    "system": system_instruction,
+                    "system": [{"type": "text", "text": system_instruction, "cache_control": {"type": "ephemeral"}}],
                     "messages": messages,
                     "stream": True,
                     "max_tokens": 8192
