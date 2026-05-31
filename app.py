@@ -169,7 +169,7 @@ def prepare_anonymized_portfolio_data(df, gesamtwert):
     if df.empty or gesamtwert <= 0:
         return ""
     
-    anonymized_data = []
+    anonymized_data = [f"Gesamtwert des Portfolios: {gesamtwert:,.2f} EUR\n"]
     for _, row in df.iterrows():
         name = row.get('Wertpapier', 'Unbekannt')
         ticker = row.get('Ticker', '')
@@ -763,9 +763,12 @@ def get_llm_response_stream(config, history, use_google_grounding=False, retries
                 )
                 
                 def gen(c, stream):
-                    for chunk in stream:
-                        if chunk.text:
-                            yield chunk.text
+                    try:
+                        for chunk in stream:
+                            if chunk.text:
+                                yield chunk.text
+                    except Exception as e:
+                        yield f"\n\n*[Verbindung zur KI unterbrochen: {e}]*"
                 return gen(client, response_stream), None
             elif config['provider'] == 'Anthropic Claude':
                 import requests
@@ -800,20 +803,23 @@ def get_llm_response_stream(config, history, use_google_grounding=False, retries
                 response.raise_for_status()
                 
                 def claude_gen(resp):
-                    with resp:
-                        for line in resp.iter_lines():
-                            if line:
-                                line = line.decode('utf-8')
-                                if line.startswith('data: '):
-                                    data_str = line[6:]
-                                    if data_str.strip() == '[DONE]':
-                                        continue
-                                    try:
-                                        data = json.loads(data_str)
-                                        if data.get('type') == 'content_block_delta' and data.get('delta', {}).get('type') == 'text_delta':
-                                            yield data['delta']['text']
-                                    except Exception:
-                                        pass
+                    try:
+                        with resp:
+                            for line in resp.iter_lines():
+                                if line:
+                                    line = line.decode('utf-8')
+                                    if line.startswith('data: '):
+                                        data_str = line[6:]
+                                        if data_str.strip() == '[DONE]':
+                                            continue
+                                        try:
+                                            data = json.loads(data_str)
+                                            if data.get('type') == 'content_block_delta' and data.get('delta', {}).get('type') == 'text_delta':
+                                                yield data['delta']['text']
+                                        except Exception:
+                                            pass
+                    except Exception as e:
+                        yield f"\n\n*[Verbindung zur KI unterbrochen: {e}]*"
                 return claude_gen(response), None
             else:
                 import requests
@@ -845,33 +851,36 @@ def get_llm_response_stream(config, history, use_google_grounding=False, retries
                 def local_gen(resp):
                     reasoning_started = False
                     reasoning_ended = False
-                    with resp:
-                        for line in resp.iter_lines():
-                            if line:
-                                line = line.decode('utf-8')
-                                if line.startswith('data: '):
-                                    data_str = line[6:]
-                                    if data_str.strip() == '[DONE]':
-                                        break
-                                    try:
-                                        data = json.loads(data_str)
-                                        delta = data['choices'][0].get('delta', {})
-                                        
-                                        reasoning = delta.get('reasoning_content')
-                                        if reasoning:
-                                            if not reasoning_started:
-                                                yield "🤔 **Gedankengang der KI:**\n\n"
-                                                reasoning_started = True
-                                            yield reasoning
+                    try:
+                        with resp:
+                            for line in resp.iter_lines():
+                                if line:
+                                    line = line.decode('utf-8')
+                                    if line.startswith('data: '):
+                                        data_str = line[6:]
+                                        if data_str.strip() == '[DONE]':
+                                            break
+                                        try:
+                                            data = json.loads(data_str)
+                                            delta = data['choices'][0].get('delta', {})
                                             
-                                        content = delta.get('content')
-                                        if content:
-                                            if reasoning_started and not reasoning_ended:
-                                                yield "\n\n---\n\n**Antwort:**\n\n"
-                                                reasoning_ended = True
-                                            yield content
-                                    except Exception:
-                                        pass
+                                            reasoning = delta.get('reasoning_content')
+                                            if reasoning:
+                                                if not reasoning_started:
+                                                    yield "🤔 **Gedankengang der KI:**\n\n"
+                                                    reasoning_started = True
+                                                yield reasoning
+                                                
+                                            content = delta.get('content')
+                                            if content:
+                                                if reasoning_started and not reasoning_ended:
+                                                    yield "\n\n---\n\n**Antwort:**\n\n"
+                                                    reasoning_ended = True
+                                                yield content
+                                        except Exception:
+                                            pass
+                    except Exception as e:
+                        yield f"\n\n*[Verbindung zur KI unterbrochen: {e}]*"
                 return local_gen(response), None
         except Exception as e:
             error_msg = str(e)
@@ -1314,6 +1323,11 @@ else:
                             st_copy_to_clipboard(msg['content'], before_copy_label="📋 Antwort kopieren", after_copy_label="✅ Kopiert!", key=f"copy_{i}")
                         except ImportError:
                             pass
+                        
+                        if i == len(st.session_state.chat_history) - 1 and "[Verbindung zur KI unterbrochen:" in msg['content']:
+                            if st.button("🔄 Antwort neu generieren", key=f"retry_gen_{i}"):
+                                st.session_state.chat_history.pop()
+                                st.rerun()
 
 # Chat Eingabe und Buttons (Immer gerendert, aber ggf. disabled)
 status_container = st.empty()
