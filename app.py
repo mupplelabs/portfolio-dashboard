@@ -385,6 +385,34 @@ def generate_search_context(llm_config, prompt_text, is_portfolio_analysis=False
         url = base_url.rstrip('/') + '/chat/completions'
     
     result = {"web_queries": [], "tickers": []}
+    
+    if llm_config.get('provider') == 'Google Gemini':
+        try:
+            from google import genai
+            from google.genai import types
+            client = genai.Client(api_key=llm_config.get('api_key', ''))
+            response = client.models.generate_content(
+                model=llm_config.get('model', 'gemini-2.5-flash'),
+                contents=user_message,
+                config=types.GenerateContentConfig(
+                    system_instruction=system_instruction,
+                    temperature=0.2
+                )
+            )
+            raw_output = response.text.strip()
+            
+            json_match = re.search(r"\{.*?\}", raw_output, re.DOTALL)
+            if json_match:
+                raw_output = json_match.group(0)
+                
+            parsed = json.loads(raw_output)
+            result["web_queries"] = parsed.get("web_queries", [])[:2]
+            result["tickers"] = parsed.get("tickers", [])[:3]
+        except Exception as e:
+            print("Fehler bei generate_search_context (Gemini):", e)
+            result["web_queries"] = [prompt_text]
+        return result
+
     try:
         response = requests.post(url, json=payload, headers=headers, timeout=30)
         response.raise_for_status()
@@ -395,11 +423,9 @@ def generate_search_context(llm_config, prompt_text, is_portfolio_analysis=False
         else:
             raw_output = data['choices'][0]['message']['content'].strip()
             
-        # Säubere möglichen <think> block
         if "</think>" in raw_output:
             raw_output = raw_output.split("</think>")[-1].strip()
             
-        # Extrahiere JSON via Regex falls das Modell trotzdem Markdown liefert
         json_match = re.search(r"\{.*?\}", raw_output, re.DOTALL)
         if json_match:
             raw_output = json_match.group(0)
@@ -409,7 +435,6 @@ def generate_search_context(llm_config, prompt_text, is_portfolio_analysis=False
         result["tickers"] = parsed.get("tickers", [])[:3]
     except Exception as e:
         print("Fehler bei generate_search_context:", e)
-        # Wenn wir keinen Ticker finden konnten, nehmen wir DuckDuckGo als reinen Text-Fallback über web_queries.
         result["web_queries"] = [prompt_text]
         
     return result
@@ -742,9 +767,6 @@ def get_llm_response_stream(config, history, use_google_grounding=False, retries
                     max_output_tokens=8192
                 )
                 
-                if use_google_grounding:
-                    genai_config.tools = [{"google_search": {}}]
-                    
                 response_stream = client.models.generate_content_stream(
                     model=config.get('model', 'gemini-2.5-flash'),
                     contents=contents,
@@ -1464,30 +1486,23 @@ if trigger_auto or user_q:
         if use_web_search:
             with status_container.container():
                 with st.status("Analysiere Portfolio für gezielte Marktsuche...", expanded=True) as status:
-                    if llm_config['provider'] == 'Google Gemini':
-                        market_context = fetch_market_context(st.session_state.portfolio_df)
-                        if market_context == "RATE_LIMIT":
-                            status.update(label="Einfache Websuche als Fallback...", state="running")
-                            search_ctx = fetch_chat_search_context("aktuelle marktsituation aktien etfs")
-                            market_context = search_ctx if search_ctx != "RATE_LIMIT" else ""
-                    else:
-                        search_ctx = generate_search_context(llm_config, portfolio_text, is_portfolio_analysis=True)
-                        queries = search_ctx["web_queries"]
-                        tickers = search_ctx["tickers"]
+                    search_ctx = generate_search_context(llm_config, portfolio_text, is_portfolio_analysis=True)
+                    queries = search_ctx["web_queries"]
+                    tickers = search_ctx["tickers"]
+                    
+                    if queries or tickers:
+                        st.write("**Gedankengang zur Websuche:**")
+                        if queries: st.write(f"- 🌐 Suche nach: `{', '.join(queries)}`")
+                        if tickers: st.write(f"- 📈 Ticker-Abfrage: `{', '.join(tickers)}`")
                         
-                        if queries or tickers:
-                            st.write("**Gedankengang zur Websuche:**")
-                            if queries: st.write(f"- 🌐 Suche nach: `{', '.join(queries)}`")
-                            if tickers: st.write(f"- 📈 Ticker-Abfrage: `{', '.join(tickers)}`")
-                            
-                        status.update(label="Sammle Marktdaten und News aus dem Web...", state="running")
-                        
-                        search_results = fetch_custom_web_search(queries, include_macro=True)
-                        ticker_data = fetch_ticker_live_data(tickers) if tickers else ""
-                        
-                        market_context = ""
-                        if search_results and search_results != "RATE_LIMIT": 
-                            market_context += search_results
+                    status.update(label="Sammle Marktdaten und News aus dem Web...", state="running")
+                    
+                    search_results = fetch_custom_web_search(queries, include_macro=True)
+                    ticker_data = fetch_ticker_live_data(tickers) if tickers else ""
+                    
+                    market_context = ""
+                    if search_results and search_results != "RATE_LIMIT": 
+                        market_context += search_results
                         if ticker_data: 
                             market_context += ("\n\n" if market_context else "") + ticker_data
                             
@@ -1514,44 +1529,40 @@ if trigger_auto or user_q:
             user_q += f"\n\n---\n**Aktueller Portfolio-Stand zur Referenz:**\n{portfolio_text}\nNutze diese Daten für deine Antwort, falls sie relevant sind."
             
         if use_chat_search:
-            if llm_config['provider'] == 'Google Gemini':
-                user_q += "\n\n(HINWEIS FÜR DIE KI: Bitte nutze dein integriertes Google Search Grounding Tool, um Echtzeit-Informationen zu dieser spezifischen Frage zu recherchieren.)"
-            else:
-                with status_container.container():
-                    with st.status("KI extrahiert Suchbegriffe und Ticker...", expanded=True) as status:
-                        search_ctx = generate_search_context(llm_config, user_q)
-                        queries = search_ctx["web_queries"]
-                        tickers = search_ctx["tickers"]
+            with status_container.container():
+                with st.status("KI extrahiert Suchbegriffe und Ticker...", expanded=True) as status:
+                    search_ctx = generate_search_context(llm_config, user_q)
+                    queries = search_ctx["web_queries"]
+                    tickers = search_ctx["tickers"]
                         
-                        if queries or tickers:
-                            st.write("**Gedankengang zur Websuche:**")
-                            if queries: st.write(f"- 🌐 Suche nach: `{', '.join(queries)}`")
-                            if tickers: st.write(f"- 📈 Ticker-Abfrage: `{', '.join(tickers)}`")
+                    if queries or tickers:
+                        st.write("**Gedankengang zur Websuche:**")
+                        if queries: st.write(f"- 🌐 Suche nach: `{', '.join(queries)}`")
+                        if tickers: st.write(f"- 📈 Ticker-Abfrage: `{', '.join(tickers)}`")
+                    
+                    status.update(label=f"Recherchiere im Web & frage Ticker {', '.join(tickers)} ab...", state="running")
+                    search_results = fetch_custom_web_search(queries) if queries else fetch_chat_search_context(user_q)
+                    if search_results == "RATE_LIMIT":
+                        search_results = ""
+                        user_q += "\n\n(HINWEIS FÜR DIE KI: Die Live-Suche nach aktuellen Marktdaten wurde blockiert oder hat keine Ergebnisse geliefert. Bitte nutze dein allgemeines Wissen, um die Frage bestmöglich zu beantworten. Falls Echtzeit-Kurse gefragt sind, weise den Nutzer kurz darauf hin, dass diese gerade nicht geladen werden konnten.)"
                         
-                        status.update(label=f"Recherchiere im Web & frage Ticker {', '.join(tickers)} ab...", state="running")
-                        search_results = fetch_custom_web_search(queries) if queries else fetch_chat_search_context(user_q)
-                        if search_results == "RATE_LIMIT":
-                            search_results = ""
-                            user_q += "\n\n(HINWEIS FÜR DIE KI: Die Live-Suche nach aktuellen Marktdaten wurde blockiert oder hat keine Ergebnisse geliefert. Bitte nutze dein allgemeines Wissen, um die Frage bestmöglich zu beantworten. Falls Echtzeit-Kurse gefragt sind, weise den Nutzer kurz darauf hin, dass diese gerade nicht geladen werden konnten.)"
-                            
-                        ticker_data = fetch_ticker_live_data(tickers) if tickers else ""
+                    ticker_data = fetch_ticker_live_data(tickers) if tickers else ""
+                    
+                    # Kombiniere beides
+                    combined_context = ""
+                    if search_results:
+                        combined_context += search_results
+                    if ticker_data:
+                        combined_context += ("\n\n" if combined_context else "") + ticker_data
                         
-                        # Kombiniere beides
-                        combined_context = ""
-                        if search_results:
-                            combined_context += search_results
-                        if ticker_data:
-                            combined_context += ("\n\n" if combined_context else "") + ticker_data
-                            
-                        if combined_context:
-                            search_results = combined_context # um unten in user_q eingefügt zu werden
-                            
-                        if search_results:
-                            user_q += f"\n\n---\n**Zusätzlicher Kontext aus aktueller Websuche zu dieser Frage:**\n{search_results}\nNutze diese Informationen für deine Antwort, falls sie relevant sind."
+                    if combined_context:
+                        search_results = combined_context # um unten in user_q eingefügt zu werden
+                        
+                    if search_results:
+                        user_q += f"\n\n---\n**Zusätzlicher Kontext aus aktueller Websuche zu dieser Frage:**\n{search_results}\nNutze diese Informationen für deine Antwort, falls sie relevant sind."
         
         st.session_state.pdf_report_bytes = None
         st.session_state.chat_history.append({"role": "user", "content": user_q, "display": display_q})
-        do_grounding = use_chat_search and llm_config['provider'] == 'Google Gemini'
         
     # Rerun to show user message immediately
     st.rerun()
@@ -1561,12 +1572,7 @@ if len(st.session_state.chat_history) > 0 and st.session_state.chat_history[-1][
     with model_response_placeholder.container():
         with st.chat_message("model"):
             with st.spinner(f"KI ({llm_config['model']}) bereitet Antwort vor..."):
-                do_grounding_last = False
-                # We check the content of the last user message to see if grounding was requested
-                if "(HINWEIS FÜR DIE KI: Bitte nutze dein integriertes Google Search Grounding Tool" in st.session_state.chat_history[-1]['content']:
-                    do_grounding_last = True
-                
-                answer_gen, err = get_llm_response_stream(llm_config, st.session_state.chat_history, use_google_grounding=do_grounding_last)
+                answer_gen, err = get_llm_response_stream(llm_config, st.session_state.chat_history)
                 if answer_gen:
                     if 'cancel_placeholder' in locals():
                         with cancel_placeholder.container():
