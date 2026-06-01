@@ -8,3 +8,5 @@ markdown
 reportlab
 st-copy-to-clipboard
 ddgs
+
+streamlit-navigation-bar

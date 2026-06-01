@@ -6,8 +6,8 @@ Ein modernes, interaktives Dashboard zur Analyse und Überwachung deines Investm
 
 - **Live-Kursdaten:** Automatische Aktualisierung der Portfolio-Werte mittels `yfinance` und Financial Modeling Prep API.
 - **Interaktive Visualisierungen:** Detaillierte Graphen zur Asset-Allokation und historischen Performance (bis zu 10 Jahre).
-- **KI-Finanzberater:** Integrierter KI-Assistent (unterstützt Google Gemini, Anthropic Claude und lokale Modelle), der dein Portfolio auf Klumpenrisiken analysiert und kontextbezogene Handlungsempfehlungen basierend auf aktuellen Marktdaten gibt.
-- **PDF-Export:** Generiere umfassende Berichte deines Portfolios inklusive Visualisierungen und KI-Zusammenfassungen als PDF.
+- **KI-Finanzberater:** Integrierter KI-Assistent (unterstützt Google Gemini, Anthropic Claude und lokale Modelle), der dein Portfolio auf Klumpenrisiken analysiert und kontextbezogene Handlungsempfehlungen basierend auf aktuellen Marktdaten gibt. (Inklusive Performance-Optimierungen wie Prompt Caching für Claude und einer vereinheitlichten Gemini-Pipeline).
+- **PDF-Export:** Generiere umfassende Berichte deines Portfolios inklusive Visualisierungen und KI-Zusammenfassungen als PDF (dank `reportlab` nun noch robuster und mit breiterem Font-Support).
 - **Docker Ready:** Einfache Bereitstellung und Ausführung in einer isolierten Container-Umgebung.
 
 ## Technologien 🛠️
@@ -18,7 +18,7 @@ Ein modernes, interaktives Dashboard zur Analyse und Überwachung deines Investm
 - **Finanzdaten:** yfinance, Financial Modeling Prep (optional)
 - **KI-Integration:** google-genai, Anthropic API, lokale Modelle via OpenAI-kompatibler API
 - **Web-Suche / Marktdaten:** DuckDuckGo Search (`ddgs`)
-- **PDF-Generierung:** fpdf2, markdown
+- **PDF-Generierung:** reportlab, markdown
 
 ## Installation & Ausführung 🚀
 

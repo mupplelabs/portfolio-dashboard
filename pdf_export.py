@@ -6,7 +6,7 @@ import pandas as pd
 import plotly.express as px
 from reportlab.lib.pagesizes import A4
 from reportlab.lib import colors
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image, XPreformatted
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image, XPreformatted, PageBreak, KeepTogether
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import cm
 from reportlab.pdfbase import pdfmetrics
@@ -35,6 +35,11 @@ def clean_unsupported_chars(text):
     # Strip all characters outside the Basic Multilingual Plane (mostly emojis)
     # Since we explicitly handle known emojis later, this acts as a fallback to prevent squares
     text = re.sub(r'[\U00010000-\U0010FFFF]', '', text)
+    
+    # Strip Variation Selectors (e.g., U+FE0F) and Combining Enclosing Keycaps (U+20E3)
+    # This prevents '1️⃣' from rendering as '1□', turning it into just '1'.
+    text = re.sub(r'[\uFE00-\uFE0F\u20E3]', '', text)
+    
     return text
 
 def parse_markdown_to_platypus(md_text, styles):
@@ -62,14 +67,16 @@ def parse_markdown_to_platypus(md_text, styles):
         # Replace known emojis with FontAwesome icons if available
         if HAS_FA:
             fa_map = {
-                '✅': '&#xf00c;', '❌': '&#xf00d;', '🚨': '&#xf071;',
-                '💡': '&#xf0eb;', '⚠️': '&#xf071;', '🛑': '&#xf05e;',
-                '🔥': '&#xf06d;', '📈': '&#xf201;', '📉': '&#xf204;',
-                '💰': '&#xf0d6;', '🔍': '&#xf002;', '📊': '&#xf080;',
-                '🧮': '&#xf640;', 'ℹ️': '&#xf05a;'
+                '✅': ('&#xf00c;', '#27AE60'), '❌': ('&#xf00d;', '#E74C3C'), '🚨': ('&#xf071;', '#E74C3C'),
+                '💡': ('&#xf0eb;', '#F1C40F'), '⚠️': ('&#xf071;', '#F39C12'), '🛑': ('&#xf05e;', '#C0392B'),
+                '🔥': ('&#xf06d;', '#E67E22'), '📈': ('&#xf201;', '#27AE60'), '📉': ('&#xf204;', '#E74C3C'),
+                '💰': ('&#xf0d6;', '#F1C40F'), '🔍': ('&#xf002;', '#3498DB'), '📊': ('&#xf080;', '#2980B9'),
+                '🧮': ('&#xf640;', '#7F8C8D'), 'ℹ️': ('&#xf05a;', '#3498DB'),
+                '🔴': ('&#xf111;', '#E74C3C'), '🟡': ('&#xf111;', '#F1C40F'), '🟢': ('&#xf111;', '#27AE60'),
+                '🔵': ('&#xf111;', '#3498DB'), '🟠': ('&#xf111;', '#E67E22')
             }
-            for emoji_char, fa_code in fa_map.items():
-                text = text.replace(emoji_char, f'<font name="FontAwesome">{fa_code}</font>')
+            for emoji_char, (fa_code, color) in fa_map.items():
+                text = text.replace(emoji_char, f'<font name="FontAwesome" color="{color}">{fa_code}</font>')
         
         # Remove any remaining emojis that break reportlab
         text = clean_unsupported_chars(text)
@@ -104,7 +111,7 @@ def parse_markdown_to_platypus(md_text, styles):
                 formatted_row.append(Paragraph(text, normal_style))
             formatted_data.append(formatted_row)
             
-        t = Table(formatted_data)
+        t = Table(formatted_data, repeatRows=1)
         t_style = TableStyle([
             ('BACKGROUND', (0,0), (-1,0), colors.HexColor("#21496B")), # Dark Blue like Claude PDF
             ('TEXTCOLOR', (0,0), (-1,0), colors.white),
@@ -121,7 +128,7 @@ def parse_markdown_to_platypus(md_text, styles):
             t_style.add('BACKGROUND', (0, i), (-1, i), bg_color)
             
         t.setStyle(t_style)
-        flowables.append(t)
+        flowables.append(KeepTogether(t))
         flowables.append(Spacer(1, 12))
 
     for line in lines:
@@ -220,6 +227,12 @@ def generate_portfolio_pdf(portfolio_df, gesamtwert, summary_text, chat_history=
                     style.fontName = 'DejaVuSans-Bold'
                 elif style.fontName == 'Times-Roman':
                     style.fontName = 'DejaVuSans'
+                    
+    # Prevent orphaned headings by keeping them with the next paragraph
+    for h_level in range(1, 7):
+        h_name = f'Heading{h_level}'
+        if h_name in styles:
+            styles[h_name].keepWithNext = True
     
     # Custom Styles
     styles.add(ParagraphStyle(
@@ -289,7 +302,7 @@ def generate_portfolio_pdf(portfolio_df, gesamtwert, summary_text, chat_history=
             f"{wert:,.2f} EUR"
         ])
         
-    t = Table(table_data, colWidths=[A4[0]*0.4, A4[0]*0.15, A4[0]*0.15, A4[0]*0.15])
+    t = Table(table_data, colWidths=[A4[0]*0.4, A4[0]*0.15, A4[0]*0.15, A4[0]*0.15], repeatRows=1)
     t_style = TableStyle([
         ('BACKGROUND', (0,0), (-1,0), colors.HexColor("#21496B")),
         ('TEXTCOLOR', (0,0), (-1,0), colors.white),
@@ -307,7 +320,7 @@ def generate_portfolio_pdf(portfolio_df, gesamtwert, summary_text, chat_history=
         bg_color = colors.HexColor("#F0F4F8") if i % 2 == 1 else colors.white
         t_style.add('BACKGROUND', (0, i), (-1, i), bg_color)
     t.setStyle(t_style)
-    flowables.append(t)
+    flowables.append(KeepTogether(t))
     flowables.append(Spacer(1, 20))
     
     # 3. Add Chart Image if kaleido is available
@@ -332,25 +345,35 @@ def generate_portfolio_pdf(portfolio_df, gesamtwert, summary_text, chat_history=
     flowables.append(Spacer(1, 10))
     flowables.extend(parse_markdown_to_platypus(summary_text, styles))
     
-    # 5. Chat History
+    # 5. Chat-basierte Analyse-Kapitel
     if chat_history:
-        flowables.append(Spacer(1, 20))
-        flowables.append(Paragraph("Vollständiger Chatverlauf", styles['Heading2']))
-        flowables.append(Spacer(1, 10))
-        
+        last_user_msg = None
         for msg in chat_history:
-            role = "Anleger" if msg['role'] == "user" else "KI Berater"
-            text_to_render = msg.get('display') or msg.get('content')
-            
-            if isinstance(text_to_render, list):
-                text_parts = [part['text'] for part in text_to_render if isinstance(part, dict) and 'text' in part]
-                text_to_render = "".join(text_parts)
-            else:
-                text_to_render = str(text_to_render)
+            if msg['role'] == "user":
+                last_user_msg = str(msg.get('display') or msg.get('content')).strip()
+            elif msg['role'] == "model":
+                text_to_render = msg.get('display') or msg.get('content')
+                if isinstance(text_to_render, list):
+                    text_parts = [part['text'] for part in text_to_render if isinstance(part, dict) and 'text' in part]
+                    text_to_render = "".join(text_parts)
+                else:
+                    text_to_render = str(text_to_render)
                 
-            flowables.append(Paragraph(f"<b>{role}:</b>", styles['Heading3']))
-            flowables.extend(parse_markdown_to_platypus(text_to_render, styles))
-            flowables.append(Spacer(1, 10))
+                flowables.append(PageBreak())
+                
+                # Check if AI text already starts with a markdown heading
+                has_heading = text_to_render.lstrip().startswith('#')
+                
+                if not has_heading and last_user_msg:
+                    # Clean up user message for use as a heading (take first line if multi-line)
+                    heading_text = last_user_msg.split('\\n')[0][:80]
+                    if len(last_user_msg.split('\\n')[0]) > 80:
+                        heading_text += "..."
+                    flowables.append(Paragraph(heading_text, styles['Heading2']))
+                    flowables.append(Spacer(1, 10))
+                    
+                flowables.extend(parse_markdown_to_platypus(text_to_render, styles))
+                last_user_msg = None
             
     # Build Document
     try:
