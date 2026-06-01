@@ -4,9 +4,6 @@ plotly
 yfinance
 google-genai
 requests
-markdown
 reportlab
 st-copy-to-clipboard
 ddgs
-
-streamlit-navigation-bar

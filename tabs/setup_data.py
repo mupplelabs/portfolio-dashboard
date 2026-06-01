@@ -2,8 +2,23 @@ import streamlit as st
 import pandas as pd
 
 def render():
-    st.header("📂 Positionen")
-    st.markdown("Lade deine Portfolio-CSV hoch oder füge Positionen manuell hinzu.")
+    col_header, col_btn = st.columns([0.8, 0.2])
+    with col_header:
+        st.header("📂 Positionen")
+        st.markdown("Lade deine Portfolio-CSV hoch oder füge Positionen manuell hinzu.")
+    with col_btn:
+        st.write("")
+        st.write("")
+        if st.button("🗑️ Portfolio leeren", use_container_width=True):
+            st.session_state.portfolio_df = pd.DataFrame()
+            st.session_state.live_data_fetched = False
+            st.session_state.uploader_key += 1
+            st.session_state.chat_history = []
+            if 'report_summary_text' in st.session_state:
+                st.session_state.report_summary_text = None
+            if 'pdf_report_bytes' in st.session_state:
+                st.session_state.pdf_report_bytes = None
+            st.rerun()
     
     col_upload, col_manual = st.columns(2)
     
@@ -44,9 +59,19 @@ def render():
                             df_upload.insert(1, 'Ticker', "")
 
                         st.session_state.portfolio_df = df_upload
-                        st.session_state.live_data_fetched = False
                         st.session_state.last_uploaded_file_id = current_file_id
-                        st.success("CSV erfolgreich geladen!")
+                        
+                        from utils import fetch_live_prices
+                        with st.spinner("Lade Live-Kurse von Yahoo Finance..."):
+                            live_prices, updated_tickers = fetch_live_prices(st.session_state.portfolio_df)
+                            st.session_state.portfolio_df['Ticker'] = updated_tickers
+                            st.session_state.portfolio_df['Live_Kurs'] = live_prices
+                            st.session_state.portfolio_df['Live_Gesamtwert'] = st.session_state.portfolio_df['St_Nom'] * st.session_state.portfolio_df['Live_Kurs']
+                            st.session_state.live_data_fetched = True
+                            
+                        st.success("CSV geladen & Live-Kurse aktualisiert! Wechsle zum Dashboard...")
+                        st.session_state.switch_tab = 0
+                        st.rerun()
                     else:
                         missing_cols = [col for col in required_cols if col not in df_upload.columns]
                         st.error(f"Fehlende Spalten in der CSV: {', '.join(missing_cols)}")

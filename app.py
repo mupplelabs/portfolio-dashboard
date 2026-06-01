@@ -94,11 +94,11 @@ if 'local_api_key' not in st.session_state: st.session_state.local_api_key = st.
 if 'fmp_api_key_input' not in st.session_state: st.session_state.fmp_api_key_input = st.session_state.get('_backup_fmp_key', '')
 
 from utils import *
-from tabs import portfolio_overview, rebalancing, dividends, backtesting, ai_advisor, setup_data, report
+from tabs import portfolio_overview, rebalancing, dividends, backtesting, ai_advisor, setup_data, report, settings
 
 # --- Hauptbereich ---
 
-tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(['📊 Dashboard', '💸 Dividend Radar', '⏱️ Backtesting', '⚖️ Rebalancing', '📄 Report', '📂 Positionen'])
+tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs(['📊 Dashboard', '💸 Dividend Radar', '⏱️ Backtesting', '⚖️ Rebalancing', '📄 Report', '📂 Positionen', '⚙️ Einstellungen'])
 
 with tab1:
     portfolio_overview.render()
@@ -117,40 +117,26 @@ with tab5:
     
 with tab6:
     setup_data.render()
+    
+with tab7:
+    settings.render()
 
 # --- Copilot Sidebar ---
 with st.sidebar:
-    # API Key Konfiguration als Popover
-    with st.popover("⚙️ Einstellungen (KI & API)", use_container_width=True):
-        st.markdown("**KI Provider & Keys**")
-        llm_provider = st.selectbox("LLM Provider", ["Google Gemini", "Anthropic Claude", "OpenAI / Local"], key="llm_provider_input")
-        if llm_provider == "Google Gemini":
-            gemini_api_key = st.text_input("Gemini API Key", type="password", value=st.session_state._backup_gemini)
-            if gemini_api_key != st.session_state._backup_gemini:
-                st.session_state._backup_gemini = gemini_api_key
-                st.rerun()
-        elif llm_provider == "Anthropic Claude":
-            claude_api_key = st.text_input("Claude API Key", type="password", value=st.session_state._backup_claude)
-            if claude_api_key != st.session_state._backup_claude:
-                st.session_state._backup_claude = claude_api_key
-                st.rerun()
-        else:
-            local_base_url = st.text_input("API Base URL", value=st.session_state._backup_url)
-            if local_base_url != st.session_state._backup_url:
-                st.session_state._backup_url = local_base_url
-                st.rerun()
-            local_api_key = st.text_input("API Key (Optional)", type="password", value=st.session_state._backup_local_key)
-            if local_api_key != st.session_state._backup_local_key:
-                st.session_state._backup_local_key = local_api_key
-                st.rerun()
-                
-        st.divider()
-        st.markdown("**Datenquellen**")
-        fmp_api_key = st.text_input("FMP API Key (Optional)", type="password", value=st.session_state._backup_fmp_key)
-        if fmp_api_key != st.session_state._backup_fmp_key:
-            st.session_state._backup_fmp_key = fmp_api_key
-            st.rerun()
-        st.session_state.fmp_api_key_input = st.session_state._backup_fmp_key
-
-    st.divider()
     ai_advisor.render()
+
+# --- Programmatic Tab Switcher ---
+if st.session_state.get('switch_tab') is not None:
+    tab_idx = st.session_state.switch_tab
+    st.session_state.switch_tab = None
+    import streamlit.components.v1 as components
+    components.html(f"""
+        <script>
+            setTimeout(() => {{
+                const tabs = window.parent.document.querySelectorAll('button[data-baseweb="tab"]');
+                if (tabs.length > {tab_idx}) {{
+                    tabs[{tab_idx}].click();
+                }}
+            }}, 150);
+        </script>
+    """, height=0)
