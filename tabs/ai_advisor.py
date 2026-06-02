@@ -47,6 +47,18 @@ def render():
         status_container = st.empty()
 
         # --- SCROLLABLE CHAT CONTAINER ---
+        st.markdown("""
+        <style>
+            /* Überschreibe die feste Höhe des Chat-Containers für eine dynamische Fensterhöhe */
+            [data-testid="stSidebar"] div[data-testid="stVerticalBlockBorderWrapper"] {
+                height: calc(100vh - 300px) !important;
+            }
+            /* Falls Streamlit eine andere Klasse nutzt: */
+            [data-testid="stSidebar"] div[style*="height: 450px"] {
+                height: calc(100vh - 300px) !important;
+            }
+        </style>
+        """, unsafe_allow_html=True)
         chat_container = st.container(height=450)
         
         with chat_container:
