@@ -13,8 +13,24 @@ def render():
     if not st.session_state.portfolio_df.empty:
         gesamtwert, _, _ = berechne_portfolio_metriken(st.session_state.portfolio_df)
         
+    # Provider-Konfiguration prüfen
+    configured_providers = []
+    if st.session_state.get("_backup_gemini", "").strip():
+        configured_providers.append("Google Gemini")
+    if st.session_state.get("_backup_claude", "").strip():
+        configured_providers.append("Anthropic Claude")
+    if st.session_state.get("_backup_url", "").strip():
+        configured_providers.append("OpenAI / Local")
+        
+    if not configured_providers:
+        configured_providers = ["Google Gemini"]
+        
+    if st.session_state.get("llm_provider_input") not in configured_providers:
+        st.session_state.llm_provider_input = configured_providers[0]
+        
     # Construct llm_config from session state
-    _provider = st.session_state.get("llm_provider_input", "Google Gemini")
+    _provider = st.session_state.llm_provider_input
+    
     _api_key = ""
     _base_url = None
     if _provider == "Google Gemini":
@@ -120,6 +136,9 @@ def render():
         
         if not is_generating:
             with st.expander("⚙️ KI-Einstellungen", expanded=False):
+                # Provider Auswahl
+                st.selectbox("LLM Provider", configured_providers, key="llm_provider_input")
+                
                 # Modelle laden
                 if _provider in ["Google Gemini", "Anthropic Claude"]:
                     available_models = get_available_models(_provider, _api_key) if _api_key else (["gemini-2.5-flash"] if _provider == "Google Gemini" else ["claude-sonnet-4-6"])

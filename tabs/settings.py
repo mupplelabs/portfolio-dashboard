@@ -8,26 +8,28 @@ def render():
     
     with col_ki:
         st.subheader("🤖 KI Provider & Keys")
-        llm_provider = st.selectbox("LLM Provider", ["Google Gemini", "Anthropic Claude", "OpenAI / Local"], key="llm_provider_input")
-        if llm_provider == "Google Gemini":
-            gemini_api_key = st.text_input("Gemini API Key", type="password", value=st.session_state._backup_gemini)
-            if gemini_api_key != st.session_state._backup_gemini:
-                st.session_state._backup_gemini = gemini_api_key
-                st.rerun()
-        elif llm_provider == "Anthropic Claude":
-            claude_api_key = st.text_input("Claude API Key", type="password", value=st.session_state._backup_claude)
-            if claude_api_key != st.session_state._backup_claude:
-                st.session_state._backup_claude = claude_api_key
-                st.rerun()
-        else:
-            local_base_url = st.text_input("API Base URL", value=st.session_state._backup_url)
-            if local_base_url != st.session_state._backup_url:
-                st.session_state._backup_url = local_base_url
-                st.rerun()
-            local_api_key = st.text_input("API Key (Optional)", type="password", value=st.session_state._backup_local_key)
-            if local_api_key != st.session_state._backup_local_key:
-                st.session_state._backup_local_key = local_api_key
-                st.rerun()
+        # Gemini
+        gemini_api_key = st.text_input("Gemini API Key", type="password", value=st.session_state._backup_gemini)
+        if gemini_api_key != st.session_state._backup_gemini:
+            st.session_state._backup_gemini = gemini_api_key
+            st.rerun()
+            
+        # Claude
+        claude_api_key = st.text_input("Claude API Key", type="password", value=st.session_state._backup_claude)
+        if claude_api_key != st.session_state._backup_claude:
+            st.session_state._backup_claude = claude_api_key
+            st.rerun()
+            
+        # Local LLM
+        st.markdown("**Lokales LLM (z.B. Ollama / LM Studio)**")
+        local_base_url = st.text_input("API Base URL", value=st.session_state._backup_url)
+        if local_base_url != st.session_state._backup_url:
+            st.session_state._backup_url = local_base_url
+            st.rerun()
+        local_api_key = st.text_input("Lokaler API Key (Optional)", type="password", value=st.session_state._backup_local_key)
+        if local_api_key != st.session_state._backup_local_key:
+            st.session_state._backup_local_key = local_api_key
+            st.rerun()
                 
     with col_data:
         st.subheader("📈 Datenquellen")
