@@ -24,6 +24,29 @@ Ein modernes, interaktives Dashboard zur Analyse und Überwachung deines Investm
 
 Die einfachste Methode, das Dashboard zu starten, ist über Docker.
 
+### Umgebungsvariablen (.env)
+
+Bevor du die Anwendung startest (egal ob mit Docker oder lokal), solltest du eine `.env` Datei im Hauptverzeichnis anlegen, um deine API-Schlüssel sicher zu hinterlegen. Wenn diese Datei existiert, werden die Schlüssel automatisch in der Seitenleiste der App vorausgefüllt.
+
+Erstelle dazu eine Datei namens `.env` (oder kopiere eine existierende `.env.example`) mit folgendem Aufbau:
+
+```env
+# Google Gemini API Key
+GEMINI_API_KEY=dein_gemini_api_key_hier
+
+# Anthropic Claude API Key
+CLAUDE_API_KEY=dein_claude_api_key_hier
+
+# URL für ein lokales LLM (z.B. LM Studio, Ollama)
+LOCAL_LLM_URL=http://192.168.178.39:1234/v1
+
+# API Key für lokales LLM (falls benötigt)
+LOCAL_LLM_KEY=dein_lokaler_key_hier
+
+# Financial Modeling Prep API Key (für Aktien-Live-Kurse)
+FMP_API_KEY=dein_fmp_api_key_hier
+```
+
 ### Voraussetzungen
 - [Docker](https://docs.docker.com/get-docker/) und [Docker Compose](https://docs.docker.com/compose/install/) installiert.
 
