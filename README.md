@@ -29,10 +29,10 @@ Erstelle im Hauptverzeichnis eine Datei namens `.env`. Diese wird sowohl von Doc
 
 ```env
 # Google Gemini API Key
-GEMINI_API_KEY=dein_gemini_api_key_hier
+GOOGLE_API_KEY=dein_google_api_key_hier
 
 # Anthropic Claude API Key
-CLAUDE_API_KEY=dein_claude_api_key_hier
+ANTHROPIC_API_KEY=dein_anthropic_api_key_hier
 
 # URL für ein lokales LLM (z.B. LM Studio, Ollama)
 LOCAL_LLM_URL=http://192.168.178.39:1234/v1
