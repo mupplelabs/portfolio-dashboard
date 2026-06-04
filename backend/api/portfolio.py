@@ -423,7 +423,7 @@ async def analyze_portfolio_stream(req: CalculateMetricsRequest):
     # Provider-Auswahl ähnlich zur alten Streamlit-Logik (Fallback Kette)
     config = {
         "provider": "Google Gemini",
-        "api_key": os.environ.get("GEMINI_API_KEY", ""),
+        "api_key": os.environ.get("GOOGLE_API_KEY", ""),
         "model": "gemini-2.5-flash"
     }
     
@@ -442,8 +442,8 @@ async def analyze_portfolio_stream(req: CalculateMetricsRequest):
         }
         
     if not config["api_key"] and config["provider"] == "Google Gemini":
-        def err_gen(): yield "⚠️ **Kein LLM konfiguriert:** Bitte hinterlege den GEMINI_API_KEY in der Umgebung."
-        return StreamingResponse(err_gen(), media_type="text/plain")
+        def err_gen(): yield "⚠️ **Kein LLM konfiguriert:** Bitte hinterlege den GOOGLE_API_KEY in der Umgebung."
+        return StreamingResponse(err_gen(), media_type="text/markdown")
 
     history = [{"role": "user", "content": prompt}]
     

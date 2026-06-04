@@ -1,7 +1,12 @@
 <template>
   <div class="positions-tab">
     <div class="header">
-      <h2>📂 Portfolio-Positionen</h2>
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <h2>📂 Portfolio-Positionen</h2>
+        <button v-if="store.portfolioLoaded" class="btn-accent" @click="store.triggerAnalysis = Date.now()">
+          🤖 Portfolio Analysieren
+        </button>
+      </div>
       <p>Hier kannst du dein Portfolio manuell verwalten. Füge neue Wertpapiere hinzu oder lösche alte Positionen. Wir suchen Live-Kurse direkt über Yahoo Finance.</p>
     </div>
 

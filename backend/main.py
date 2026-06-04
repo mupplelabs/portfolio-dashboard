@@ -11,9 +11,6 @@ from fastapi.responses import FileResponse
 env_path = Path(__file__).resolve().parent.parent / '.env'
 load_dotenv(dotenv_path=env_path)
 
-# PydanticAI erwartet 'GOOGLE_API_KEY', in der alten .env heißt er aber 'GEMINI_API_KEY'.
-if "GEMINI_API_KEY" in os.environ and "GOOGLE_API_KEY" not in os.environ:
-    os.environ["GOOGLE_API_KEY"] = os.environ["GEMINI_API_KEY"]
 
 app = FastAPI(
     title="Portfolio Analyse API",
