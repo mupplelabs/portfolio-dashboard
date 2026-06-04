@@ -1,0 +1,63 @@
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+import uvicorn
+import os
+from dotenv import load_dotenv
+from pathlib import Path
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+
+# Lade die .env Datei aus dem Root-Verzeichnis (ein Ordner über 'backend')
+env_path = Path(__file__).resolve().parent.parent / '.env'
+load_dotenv(dotenv_path=env_path)
+
+# PydanticAI erwartet 'GOOGLE_API_KEY', in der alten .env heißt er aber 'GEMINI_API_KEY'.
+if "GEMINI_API_KEY" in os.environ and "GOOGLE_API_KEY" not in os.environ:
+    os.environ["GOOGLE_API_KEY"] = os.environ["GEMINI_API_KEY"]
+
+app = FastAPI(
+    title="Portfolio Analyse API",
+    description="Backend API for the Portfolio Analysis Dashboard",
+    version="1.0.0"
+)
+
+# CORS configuration - allowing the Vite dev server
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+@app.get("/api/health")
+def health_check():
+    return {"status": "ok"}
+
+# We will mount routers here later
+from api.portfolio import router as portfolio_router
+from api.chat import router as chat_router
+from api.models import router as models_router
+
+app.include_router(portfolio_router, prefix="/api/portfolio")
+app.include_router(models_router, prefix="/api/models")
+app.include_router(chat_router) # WebSockets don't strictly need an api prefix if they define it
+
+# --- Frontend Serving ---
+# Serve static frontend files from the 'static' directory if it exists
+frontend_dist = Path(__file__).resolve().parent / "static"
+if frontend_dist.exists():
+    # Mount the assets directory (js, css, images) directly
+    app.mount("/assets", StaticFiles(directory=frontend_dist / "assets"), name="assets")
+    
+    # Catch-all route to serve the SPA (Single Page Application)
+    @app.get("/{full_path:path}")
+    async def serve_frontend(full_path: str):
+        path = frontend_dist / full_path
+        if path.is_file():
+            return FileResponse(path)
+        # Fallback to index.html for client-side routing
+        return FileResponse(frontend_dist / "index.html")
+
+if __name__ == "__main__":
+    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)

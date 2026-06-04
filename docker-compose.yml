@@ -5,13 +5,11 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: portfolio-dashboard
+    container_name: investiq
     ports:
-      - "8501:8501"
-    volumes:
-      # This bind mount maps your local directory to the /app directory in the container.
-      # It allows you to edit app.py locally and see the changes live without rebuilding!
-      - .:/app
+      - "8080:8000"
+    # volumes:
+    #   - .:/app  # Disable volume mount in production so the built container code runs
     env_file:
       - .env
     environment:

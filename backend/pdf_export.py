@@ -92,9 +92,9 @@ def parse_markdown_to_platypus(md_text, styles):
 
     def flush_paragraph():
         if current_paragraph:
-            # Join with <br/> to match Streamlit's GFM line break behavior
-            text = "<br/>\n".join(current_paragraph)
-            text = process_inline(text)
+            # Escape and process inline elements FIRST, so we don't escape our own <br/> tag
+            processed_lines = [process_inline(line) for line in current_paragraph]
+            text = "<br/>\n".join(processed_lines)
             flowables.append(Paragraph(text, normal_style))
             flowables.append(Spacer(1, 6))
             current_paragraph.clear()

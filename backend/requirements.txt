@@ -1,0 +1,13 @@
+fastapi
+uvicorn
+pydantic
+pydantic-ai
+websockets
+pandas
+yfinance
+python-dotenv
+ddgs
+reportlab
+python-multipart
+plotly
+kaleido

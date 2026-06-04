@@ -26,3 +26,14 @@ env.txt
 
 # MacOS
 .DS_Store
+
+# Frontend
+node_modules/
+dist/
+
+# Backups & Archives
+*.zip
+*.tar.gz
+
+# Scratch & Old Scripts
+_scratch/
