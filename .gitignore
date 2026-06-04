@@ -30,6 +30,7 @@ env.txt
 # Frontend
 node_modules/
 dist/
+backend/static/
 
 # Backups & Archives
 *.zip
