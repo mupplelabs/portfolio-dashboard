@@ -12,6 +12,8 @@ router = APIRouter()
 class PortfolioPosition(BaseModel):
     Wertpapier: str
     Ticker: str
+    ISIN: str = ""
+    WKN: str = ""
     St_Nom: float
     Kaufwert: float
     Avg_Kaufkurs: float
@@ -264,11 +266,22 @@ async def search_ticker(query: str):
                 price = 0.0
                 
         currency = info.get("currency", "EUR")
+        
+        isin_val = "-"
+        try:
+            # Versuch die ISIN über yfinance abzurufen
+            fetched_isin = t.isin
+            if fetched_isin and fetched_isin != "-":
+                isin_val = fetched_isin
+        except Exception:
+            pass
+            
         return {
             "Ticker": ticker_symbol,
             "Wertpapier": name,
             "Aktueller_Kurs": float(price),
-            "Waehrung": currency
+            "Waehrung": currency,
+            "ISIN": isin_val
         }
     except Exception as e:
         raise HTTPException(status_code=404, detail=f"Ticker {query} nicht gefunden: {str(e)}")
@@ -315,6 +328,17 @@ async def calculate_metrics_from_json(req: CalculateMetricsRequest):
             df['Live_Kurs'] = df['Aktueller_Kurs']
         else:
             df['Live_Kurs'] = df['Live_Kurs'].fillna(df['Aktueller_Kurs'])
+            
+    # Recalculate Kaufwert and Akt_Wert if St_Nom has changed in frontend
+    if 'St_Nom' in df.columns:
+        if 'Avg_Kaufkurs' in df.columns:
+            df['Kaufwert'] = df['St_Nom'] * df['Avg_Kaufkurs']
+            df['Kaufpreis'] = df['Kaufwert']
+            
+        if 'Live_Kurs' in df.columns:
+            df['Akt_Wert'] = df['St_Nom'] * df['Live_Kurs']
+            df['Live_Gesamtwert'] = df['Akt_Wert']
+            df['Wert'] = df['Akt_Wert']
         
     gesamtwert, gewinn, performance, positions = berechne_portfolio_metriken(df, live_data_fetched=True)
     

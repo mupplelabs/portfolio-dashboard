@@ -53,6 +53,10 @@ if frontend_dist.exists():
     # Catch-all route to serve the SPA (Single Page Application)
     @app.get("/{full_path:path}")
     async def serve_frontend(full_path: str):
+        if full_path.startswith("api/"):
+            from fastapi import HTTPException
+            raise HTTPException(status_code=404, detail="API route not found")
+            
         path = frontend_dist / full_path
         if path.is_file():
             return FileResponse(path)

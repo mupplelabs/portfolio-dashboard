@@ -17,8 +17,10 @@
           <h2>📊 Portfolio Dashboard</h2>
           <div class="header-buttons" style="display: flex; gap: 1rem; align-items: center;">
             <div class="upload-btn-wrapper">
-              <button class="btn-primary">CSV Hochladen</button>
-              <input type="file" accept=".csv" @change="uploadCSV" :disabled="isUploading" />
+              <button class="btn-primary">
+                {{ store.isUploading ? 'Importiere... ⏳' : 'CSV Hochladen' }}
+              </button>
+              <input type="file" id="global-csv-upload" accept=".csv" @change="uploadCSV" :disabled="store.isUploading" />
             </div>
             <button v-if="store.portfolioLoaded" class="btn-accent" @click="store.triggerAnalysis = Date.now()">
               🤖 Portfolio Analysieren
@@ -26,10 +28,10 @@
           </div>
         </div>
         
-        <p v-if="!store.portfolioLoaded && !isUploading" class="empty-state">
+        <p v-if="!store.portfolioLoaded && !store.isUploading" class="empty-state">
           Bitte lade ein Bank-CSV hoch, um die Analyse zu starten.
         </p>
-        <p v-if="isUploading" class="loading-state">
+        <p v-if="store.isUploading" class="loading-state">
           Berechne Live-Metriken...
         </p>
         
@@ -108,6 +110,19 @@
         <PositionsTab />
       </div>
     </div>
+
+    <!-- Upload Dialog Modal -->
+    <div v-if="showUploadDialog" class="modal-overlay">
+      <div class="modal-content glass">
+        <h3>⚠️ Daten importieren</h3>
+        <p>Dein Portfolio enthält bereits Positionen. Möchtest du die neuen CSV-Daten anhängen oder das bestehende Portfolio komplett überschreiben?</p>
+        <div class="modal-actions">
+          <button class="btn-primary" @click="executeUpload('append')">Anhängen</button>
+          <button class="btn-danger" @click="executeUpload('overwrite')">Überschreiben</button>
+          <button class="btn-secondary" @click="cancelUpload">Abbrechen</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -121,7 +136,8 @@ import RebalancingTab from './RebalancingTab.vue'
 import PositionsTab from './PositionsTab.vue'
 
 const activeTab = ref('overview')
-const isUploading = ref(false)
+const showUploadDialog = ref(false)
+let pendingFile = null
 
 const tabs = [
   { id: 'overview', name: '📊 Dashboard' },
@@ -141,13 +157,35 @@ const formatCurrency = (val) => {
   return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(val)
 }
 
-const uploadCSV = async (event) => {
+const uploadCSV = (event) => {
   const file = event.target.files[0]
   if (!file) return
   
-  isUploading.value = true
+  if (store.positions && store.positions.length > 0) {
+    pendingFile = file
+    showUploadDialog.value = true
+  } else {
+    pendingFile = file
+    executeUpload('overwrite')
+  }
+  
+  // reset input so the same file can be selected again if cancelled
+  event.target.value = null
+}
+
+const cancelUpload = () => {
+  showUploadDialog.value = false
+  pendingFile = null
+}
+
+const executeUpload = async (mode) => {
+  showUploadDialog.value = false
+  if (!pendingFile) return
+  
+  store.isUploading = true
   const formData = new FormData()
-  formData.append('file', file)
+  formData.append('file', pendingFile)
+  pendingFile = null
   
   try {
     const res = await fetch('/api/portfolio/metrics', {
@@ -157,11 +195,18 @@ const uploadCSV = async (event) => {
     
     if (res.ok) {
       const data = await res.json()
-      store.metrics.gesamtwert = data.gesamtwert
-      store.metrics.gesamt_gewinn = data.gesamt_gewinn
-      store.metrics.performance_prozent = data.performance_prozent
-      store.positions = data.positions || []
-      store.portfolioLoaded = true
+      
+      if (mode === 'append') {
+        store.positions = [...store.positions, ...(data.positions || [])]
+        // Since we appended, we need to recalculate overall metrics via the backend
+        await store.updateMetrics()
+      } else {
+        store.metrics.gesamtwert = data.gesamtwert
+        store.metrics.gesamt_gewinn = data.gesamt_gewinn
+        store.metrics.performance_prozent = data.performance_prozent
+        store.positions = data.positions || []
+        store.portfolioLoaded = true
+      }
     } else {
       const errText = await res.text()
       alert(`Fehler beim Upload der CSV: ${errText}`)
@@ -170,8 +215,7 @@ const uploadCSV = async (event) => {
     console.error(e)
     alert("Netzwerkfehler")
   } finally {
-    isUploading.value = false
-    event.target.value = null // reset input
+    store.isUploading = false
   }
 }
 
@@ -411,4 +455,58 @@ const renderCharts = () => {
 
 .text-positive { color: #22c55e; }
 .text-negative { color: #ef4444; }
+
+/* Modal Styles */
+.modal-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.6);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+.modal-content {
+  background: var(--bg-card);
+  padding: 2rem;
+  border-radius: 12px;
+  max-width: 400px;
+  text-align: center;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+  border: 1px solid var(--border-color);
+}
+.modal-content h3 {
+  margin-top: 0;
+  color: var(--text-main);
+}
+.modal-content p {
+  color: var(--text-muted);
+  margin-bottom: 2rem;
+}
+.modal-actions {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+}
+.btn-danger {
+  background-color: #ef4444;
+  color: white;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+.btn-danger:hover { opacity: 0.8; }
+.btn-secondary {
+  background-color: transparent;
+  color: var(--text-main);
+  border: 1px solid var(--border-color);
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.btn-secondary:hover { background: rgba(255,255,255,0.1); }
 </style>

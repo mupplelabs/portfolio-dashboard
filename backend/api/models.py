@@ -64,6 +64,7 @@ async def fetch_local_models(base_url: str, api_key: str):
         except Exception:
             return []
 
+@router.get("")
 @router.get("/")
 async def get_models(provider: str, api_key: str = "", base_url: str = ""):
     try:

@@ -7,7 +7,12 @@
 
     <!-- Hinzufügen Formular -->
     <div class="add-container">
-      <h3>➕ Neue Position hinzufügen</h3>
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+        <h3 style="margin: 0;">➕ Neue Position hinzufügen</h3>
+        <button class="btn-primary" @click="triggerGlobalUpload" :disabled="store.isUploading">
+          {{ store.isUploading ? 'Importiere... ⏳' : 'CSV Hochladen' }}
+        </button>
+      </div>
       
       <div class="search-section">
         <label>ISIN, WKN oder Ticker suchen</label>
@@ -71,26 +76,45 @@
         <thead>
           <tr>
             <th>Wertpapier</th>
+            <th>ISIN</th>
+            <th>WKN</th>
             <th>Ticker</th>
             <th>Stück</th>
-            <th>Kaufwert</th>
+            <th>Kaufwert (€)</th>
             <th>Akt. Wert</th>
             <th>G/V</th>
             <th>Aktion</th>
           </tr>
         </thead>
         <tbody>
-          <tr v-for="(pos, idx) in store.positions" :key="idx">
-            <td><strong>{{ pos.Wertpapier }}</strong></td>
-            <td><span class="badge">{{ pos.Ticker }}</span></td>
-            <td>{{ formatNumber(pos.St_Nom) }}</td>
-            <td>{{ formatCurrency(pos.Kaufwert) }}</td>
+          <tr v-for="(pos, idx) in store.positions" :key="idx" :class="{ 'row-success': pos._refreshSuccess }">
+            <td>
+              <input class="inline-edit" v-model="pos.Wertpapier" @change="store.updateMetrics()" />
+            </td>
+            <td>
+              <input class="inline-edit badge-input" v-model="pos.ISIN" placeholder="ISIN..." @change="store.updateMetrics()" />
+            </td>
+            <td>
+              <input class="inline-edit badge-input" v-model="pos.WKN" placeholder="WKN..." @change="store.updateMetrics()" />
+            </td>
+            <td>
+              <input class="inline-edit badge-input" v-model="pos.Ticker" @change="store.updateMetrics()" />
+            </td>
+            <td>
+              <input type="number" step="any" class="inline-edit number-input" v-model="pos.St_Nom" @input="recalcRowLocally(pos)" @change="store.updateMetrics()" />
+            </td>
+            <td>
+              <input type="number" step="any" class="inline-edit number-input" v-model="pos.Kaufwert" @input="recalcRowLocally(pos)" @change="store.updateMetrics()" />
+            </td>
             <td>{{ formatCurrency(pos.Akt_Wert) }}</td>
             <td :class="pos.Gewinn_Verlust >= 0 ? 'positive' : 'negative'">
               {{ formatCurrency(pos.Gewinn_Verlust) }}
             </td>
             <td>
-              <button class="btn-delete" @click="removePosition(idx)" title="Entfernen">🗑️</button>
+              <button class="btn-icon" @click="refreshPosition(idx)" :data-tooltip="pos._refreshSuccess ? 'Erfolgreich!' : 'Daten aktualisieren'" data-tooltip-pos="left" :disabled="pos._isRefreshing">
+                {{ pos._isRefreshing ? '⏳' : (pos._refreshSuccess ? '✅' : '🔄') }}
+              </button>
+              <button class="btn-delete btn-icon" @click="removePosition(idx)" data-tooltip="Entfernen" data-tooltip-pos="left">🗑️</button>
             </td>
           </tr>
         </tbody>
@@ -110,6 +134,8 @@ const searchError = ref(null)
 const defaultPos = {
   Wertpapier: '',
   Ticker: '',
+  ISIN: '',
+  WKN: '',
   Waehrung: 'EUR',
   Aktueller_Kurs: 0,
   St_Nom: 0,
@@ -150,6 +176,8 @@ const addPosition = async () => {
   const posObj = {
     Wertpapier: newPos.value.Wertpapier,
     Ticker: newPos.value.Ticker,
+    ISIN: newPos.value.ISIN || '',
+    WKN: newPos.value.WKN || '',
     St_Nom: parseFloat(newPos.value.St_Nom),
     Kaufwert: parseFloat(newPos.value.Kaufwert),
     Kaufpreis: parseFloat(newPos.value.Kaufwert),
@@ -172,6 +200,82 @@ const removePosition = async (idx) => {
     store.positions.splice(idx, 1)
     await store.updateMetrics()
   }
+}
+
+const recalcRowLocally = (pos) => {
+  const st_nom = parseFloat(pos.St_Nom) || 0
+  const avg_kauf = parseFloat(pos.Avg_Kaufkurs) || 0
+  const akt_kurs = parseFloat(pos.Aktueller_Kurs) || 0
+  
+  pos.Kaufwert = st_nom * avg_kauf
+  pos.Akt_Wert = st_nom * akt_kurs
+  pos.Gewinn_Verlust = pos.Akt_Wert - pos.Kaufwert
+  
+  if (pos.Kaufwert > 0) {
+    pos.Performance = (pos.Gewinn_Verlust / pos.Kaufwert) * 100
+  } else {
+    pos.Performance = 0
+  }
+  
+  // Recalculate global metrics locally for instant feeling
+  let gesamtKauf = 0
+  let gesamtAkt = 0
+  for (const p of store.positions) {
+    gesamtKauf += p.Kaufwert || 0
+    gesamtAkt += p.Akt_Wert || 0
+  }
+  
+  store.metrics.gesamtwert = gesamtAkt
+  store.metrics.gesamt_gewinn = gesamtAkt - gesamtKauf
+  store.metrics.performance_prozent = gesamtKauf > 0 ? (store.metrics.gesamt_gewinn / gesamtKauf) * 100 : 0
+}
+
+const refreshPosition = async (idx) => {
+  const pos = store.positions[idx]
+  const queriesToTry = [pos.ISIN, pos.WKN, pos.Ticker, pos.Wertpapier].filter(q => q && String(q).trim().length > 0)
+  
+  if (queriesToTry.length === 0) {
+    alert("Bitte gib zumindest eine ISIN, WKN, Ticker oder Namen ein, um zu suchen.")
+    return
+  }
+  
+  pos._isRefreshing = true
+  
+  let foundData = null
+  for (const query of queriesToTry) {
+    try {
+      const res = await fetch(`/api/portfolio/search?query=${encodeURIComponent(String(query).trim())}`)
+      if (res.ok) {
+        foundData = await res.json()
+        break // Stop searching once we have a hit
+      }
+    } catch(e) {
+      console.warn(`Suche nach ${query} fehlgeschlagen. Versuche nächstes...`)
+    }
+  }
+  
+  pos._isRefreshing = false
+  
+  if (foundData) {
+    if (foundData.Ticker) pos.Ticker = foundData.Ticker
+    if (foundData.Wertpapier) pos.Wertpapier = foundData.Wertpapier
+    if (foundData.Aktueller_Kurs) pos.Aktueller_Kurs = foundData.Aktueller_Kurs
+    if (foundData.ISIN && foundData.ISIN !== '-') pos.ISIN = foundData.ISIN
+    
+    pos._refreshSuccess = true
+    setTimeout(() => {
+      pos._refreshSuccess = false
+    }, 2000)
+    
+    await store.updateMetrics()
+  } else {
+    alert(`Konnte für diese Position leider keine Daten bei Yahoo Finance finden.`)
+  }
+}
+
+const triggerGlobalUpload = () => {
+  const fileInput = document.getElementById('global-csv-upload')
+  if (fileInput) fileInput.click()
 }
 
 const resetForm = () => {
@@ -355,15 +459,21 @@ const formatNumber = (val) => {
 .positive { color: #10b981; }
 .negative { color: #ef4444; }
 
-.btn-delete {
+.btn-icon {
   background: transparent;
   border: none;
   cursor: pointer;
   font-size: 1.2rem;
   opacity: 0.7;
-  transition: opacity 0.2s;
+  transition: all 0.2s;
+  padding: 0 4px;
 }
-.btn-delete:hover { opacity: 1; }
+.btn-icon:hover { opacity: 1; transform: scale(1.1); }
+
+.row-success td {
+  background-color: rgba(16, 185, 129, 0.1);
+  transition: background-color 0.3s ease;
+}
 
 .empty-state {
   text-align: center;
@@ -371,5 +481,39 @@ const formatNumber = (val) => {
   color: var(--text-secondary);
   background: rgba(0,0,0,0.1);
   border-radius: 8px;
+}
+
+/* Inline Edit Styles */
+.inline-edit {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-primary);
+  font-size: 0.95rem;
+  font-family: inherit;
+  padding: 4px 8px;
+  border-radius: 4px;
+  width: 100%;
+  transition: all 0.2s;
+}
+
+.inline-edit:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.inline-edit:focus {
+  background: var(--bg-color);
+  border: 1px solid var(--accent);
+  outline: none;
+}
+
+.badge-input {
+  font-family: monospace;
+  width: 90px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.number-input {
+  width: 100px;
 }
 </style>

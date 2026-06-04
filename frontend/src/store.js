@@ -2,6 +2,7 @@ import { reactive } from 'vue'
 
 export const store = reactive({
   portfolioLoaded: false,
+  isUploading: false,
   metrics: {
     gesamtwert: 0,
     gesamt_gewinn: 0,

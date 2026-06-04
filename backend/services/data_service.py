@@ -117,6 +117,8 @@ def berechne_portfolio_metriken(df: pd.DataFrame, live_data_fetched: bool = Fals
         positions.append({
             "Wertpapier": str(row.get('Wertpapier', 'Unbekannt')),
             "Ticker": str(row.get('Ticker', '')),
+            "ISIN": str(row.get('ISIN', '')),
+            "WKN": str(row.get('WKN', '')),
             "St_Nom": st_nom,
             "Kaufwert": kaufwert_pos,
             "Avg_Kaufkurs": avg_kaufkurs,

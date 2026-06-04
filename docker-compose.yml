@@ -15,10 +15,6 @@ services:
       - PYTHONDONTWRITEBYTECODE=1
       # Prevent python from buffering stdout and stderr
       - PYTHONUNBUFFERED=1
-      # Explicitly declared for Synology Container Manager GUI parsing
-      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
-      - CLAUDE_API_KEY=${CLAUDE_API_KEY:-}
-      - LOCAL_LLM_URL=${LOCAL_LLM_URL:-http://localhost:11434/v1}
-      - LOCAL_LLM_KEY=${LOCAL_LLM_KEY:-}
-      - FMP_API_KEY=${FMP_API_KEY:-}
+      # Explicitly declared API keys removed to prevent Synology overwriting them with empty strings from the host
+      # The container will securely load them directly from the .env file instead.
     restart: unless-stopped
