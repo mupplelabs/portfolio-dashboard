@@ -3,9 +3,6 @@
     <div class="header">
       <div style="display: flex; justify-content: space-between; align-items: center;">
         <h2>📂 Portfolio-Positionen</h2>
-        <button v-if="store.portfolioLoaded" class="btn-accent" @click="store.triggerAnalysis = Date.now()">
-          🤖 Portfolio Analysieren
-        </button>
       </div>
       <p>Hier kannst du dein Portfolio manuell verwalten. Füge neue Wertpapiere hinzu oder lösche alte Positionen. Wir suchen Live-Kurse direkt über Yahoo Finance.</p>
     </div>
@@ -71,7 +68,12 @@
 
     <!-- Positionsliste -->
     <div class="table-container">
-      <h3>📋 Deine Wertpapiere ({{ store.positions.length }})</h3>
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+        <h3 style="margin: 0;">📋 Deine Wertpapiere ({{ store.positions.length }})</h3>
+        <button v-if="store.portfolioLoaded" class="btn-accent" @click="store.triggerAnalysis = Date.now()">
+          🤖 Portfolio Analysieren
+        </button>
+      </div>
       
       <div v-if="store.positions.length === 0" class="empty-state">
         Dein Portfolio ist noch leer. Füge oben eine Position hinzu oder lade im Dashboard ein CSV hoch.
