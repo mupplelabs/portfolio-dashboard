@@ -22,6 +22,7 @@ __pycache__/
 
 # Secrets / Environment variables
 .env
+tmp_env.txt
 env.txt
 
 # MacOS
