@@ -23,7 +23,7 @@ async def fetch_google_models(api_key: str):
 
 async def fetch_anthropic_models(api_key: str):
     if not api_key:
-        return ["claude-3-5-sonnet-latest", "claude-3-5-haiku-latest", "claude-3-opus-latest"]
+        return ["claude-3-5-sonnet-20241022", "claude-3-5-haiku-20241022", "claude-3-opus-20240229"]
         
     url = "https://api.anthropic.com/v1/models"
     headers = {
@@ -37,9 +37,9 @@ async def fetch_anthropic_models(api_key: str):
                 data = resp.json()
                 return [m["id"] for m in data.get("data", [])]
             else:
-                return ["claude-3-5-sonnet-latest", "claude-3-5-haiku-latest"]
+                return ["claude-3-5-sonnet-20241022", "claude-3-5-haiku-20241022"]
         except Exception:
-            return ["claude-3-5-sonnet-latest", "claude-3-5-haiku-latest"]
+            return ["claude-3-5-sonnet-20241022", "claude-3-5-haiku-20241022"]
 
 async def fetch_local_models(base_url: str, api_key: str):
     if not base_url:
