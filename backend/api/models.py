@@ -3,8 +3,11 @@ from fastapi import APIRouter, HTTPException
 
 router = APIRouter()
 
+import os
+
 # Wir kapseln die Aufrufe in saubere Funktionen, damit sie bei API-Änderungen leicht wartbar sind.
 async def fetch_google_models(api_key: str):
+    api_key = api_key or os.environ.get("GOOGLE_API_KEY")
     if not api_key:
         return ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-1.5-pro", "gemini-1.5-flash"]
     
@@ -22,6 +25,7 @@ async def fetch_google_models(api_key: str):
             return ["gemini-2.5-flash", "gemini-2.5-pro"]
 
 async def fetch_anthropic_models(api_key: str):
+    api_key = api_key or os.environ.get("ANTHROPIC_API_KEY")
     if not api_key:
         return ["claude-3-5-sonnet-20241022", "claude-3-5-haiku-20241022", "claude-3-opus-20240229"]
         
@@ -42,6 +46,8 @@ async def fetch_anthropic_models(api_key: str):
             return ["claude-3-5-sonnet-20241022", "claude-3-5-haiku-20241022"]
 
 async def fetch_local_models(base_url: str, api_key: str):
+    base_url = base_url or os.environ.get("LOCAL_LLM_URL", "http://localhost:11434/v1")
+    api_key = api_key or os.environ.get("LOCAL_LLM_KEY")
     if not base_url:
         return []
     
