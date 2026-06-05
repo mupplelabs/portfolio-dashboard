@@ -18,7 +18,7 @@
         
         <div class="form-group" v-if="settings.provider === 'OpenAI / Local'">
           <label>Local API URL</label>
-          <input type="text" v-model="settings.baseUrl" :placeholder="baseUrlDefault" />
+          <input type="text" v-model="settings.baseUrl" placeholder="Optional: Überschreibt Server-URL" />
           <small>Standard vom Server: {{ baseUrlDefault }}</small>
         </div>
         
@@ -44,8 +44,9 @@
         
       </div>
       
-      <div class="modal-footer">
-        <button class="btn-primary" @click="saveSettings">Speichern</button>
+      <div class="modal-footer" style="display: flex; justify-content: space-between;">
+        <button class="btn-secondary" @click="resetSettings">Zurücksetzen</button>
+        <button class="btn-primary" @click="saveSettings" style="width: auto;">Speichern</button>
       </div>
     </div>
   </div>
@@ -92,7 +93,7 @@ const apiKeyPlaceholder = computed(() => {
 })
 
 const baseUrlDefault = computed(() => {
-  return store.backendConfig?.local_llm_url || "http://localhost:11434/v1"
+  return store.backendConfig?.local_llm_url || "Nicht konfiguriert"
 })
 
 const fetchModels = async () => {
@@ -153,6 +154,25 @@ const saveSettings = () => {
   localStorage.setItem('llm_model', settings.model)
   localStorage.setItem('llm_api_key', settings.apiKey)
   localStorage.setItem('llm_base_url', settings.baseUrl)
+  
+  emit('close')
+}
+
+const resetSettings = () => {
+  localStorage.removeItem('llm_provider')
+  localStorage.removeItem('llm_model')
+  localStorage.removeItem('llm_api_key')
+  localStorage.removeItem('llm_base_url')
+  
+  store.llmSettings.provider = 'Google Gemini'
+  store.llmSettings.model = 'gemini-2.5-flash'
+  store.llmSettings.apiKey = ''
+  store.llmSettings.baseUrl = store.backendConfig?.local_llm_url || ''
+  
+  settings.provider = store.llmSettings.provider
+  settings.model = store.llmSettings.model
+  settings.apiKey = store.llmSettings.apiKey
+  settings.baseUrl = store.llmSettings.baseUrl
   
   emit('close')
 }
@@ -283,6 +303,21 @@ onMounted(() => {
   border-top: 1px solid var(--border-color);
   display: flex;
   justify-content: flex-end;
+}
+
+.btn-secondary {
+  background-color: transparent;
+  color: var(--color-text);
+  border: 1px solid var(--border-color);
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-secondary:hover {
+  background-color: rgba(255, 255, 255, 0.05);
 }
 
 .btn-primary {

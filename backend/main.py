@@ -37,7 +37,7 @@ def get_config():
         "has_google_key": bool(os.environ.get("GOOGLE_API_KEY")),
         "has_anthropic_key": bool(os.environ.get("ANTHROPIC_API_KEY")),
         "has_local_key": bool(os.environ.get("LOCAL_LLM_KEY")),
-        "local_llm_url": os.environ.get("LOCAL_LLM_URL", "http://localhost:11434/v1")
+        "local_llm_url": os.environ.get("LOCAL_LLM_URL", "")
     }
 
 # We will mount routers here later
