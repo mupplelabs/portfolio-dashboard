@@ -24,7 +24,7 @@
         
         <div class="form-group">
           <label>API Key</label>
-          <input type="password" v-model="settings.apiKey" :placeholder="apiKeyPlaceholder" :class="{'input-warning': !hasBackendKey && !settings.apiKey}" />
+          <input type="password" v-model="settings.apiKey" :placeholder="apiKeyPlaceholder" :class="{'input-warning': !hasBackendKey && !settings.apiKey && settings.provider !== 'OpenAI / Local'}" />
           <small>Wird lokal im Browser gespeichert.</small>
         </div>
         
@@ -88,6 +88,9 @@ const apiKeyPlaceholder = computed(() => {
   if (hasBackendKey.value) {
     return "✅ Im Backend konfiguriert (Überschreiben?)"
   } else {
+    if (settings.provider === 'OpenAI / Local') {
+      return "Optional (für lokale Modelle leer lassen)"
+    }
     return "⚠️ Fehlt im Backend! Bitte eingeben."
   }
 })
