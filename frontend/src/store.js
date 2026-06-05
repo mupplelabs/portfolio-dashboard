@@ -16,7 +16,23 @@ export const store = reactive({
     provider: localStorage.getItem('llm_provider') || 'Google Gemini',
     model: localStorage.getItem('llm_model') || 'gemini-2.5-flash',
     apiKey: localStorage.getItem('llm_api_key') || '',
-    baseUrl: localStorage.getItem('llm_base_url') || 'http://localhost:11434/v1'
+    baseUrl: localStorage.getItem('llm_base_url') || '' // Wird später durch backendConfig ergänzt, falls leer
+  },
+  
+  backendConfig: null,
+  
+  async fetchBackendConfig() {
+    try {
+      const res = await fetch('/api/config')
+      if (res.ok) {
+        this.backendConfig = await res.json()
+        if (!this.llmSettings.baseUrl && this.backendConfig.local_llm_url) {
+          this.llmSettings.baseUrl = this.backendConfig.local_llm_url
+        }
+      }
+    } catch (e) {
+      console.error('Failed to fetch backend config', e)
+    }
   },
   
   theme: localStorage.getItem('app_theme') || 'dark',

@@ -55,6 +55,7 @@ onMounted(() => {
   if (store.theme === 'light') {
     document.body.classList.add('light-theme')
   }
+  store.fetchBackendConfig()
 })
 
 // Resizable Sidebar Logic

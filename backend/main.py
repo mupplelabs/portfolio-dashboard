@@ -31,6 +31,15 @@ app.add_middleware(
 def health_check():
     return {"status": "ok"}
 
+@app.get("/api/config")
+def get_config():
+    return {
+        "has_google_key": bool(os.environ.get("GOOGLE_API_KEY")),
+        "has_anthropic_key": bool(os.environ.get("ANTHROPIC_API_KEY")),
+        "has_local_key": bool(os.environ.get("LOCAL_LLM_KEY")),
+        "local_llm_url": os.environ.get("LOCAL_LLM_URL", "http://localhost:11434/v1")
+    }
+
 # We will mount routers here later
 from api.portfolio import router as portfolio_router
 from api.chat import router as chat_router

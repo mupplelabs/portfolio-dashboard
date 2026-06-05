@@ -18,13 +18,13 @@
         
         <div class="form-group" v-if="settings.provider === 'OpenAI / Local'">
           <label>Local API URL</label>
-          <input type="text" v-model="settings.baseUrl" placeholder="z.B. http://localhost:11434/v1" />
-          <small>Standard: http://localhost:11434/v1 (Ollama)</small>
+          <input type="text" v-model="settings.baseUrl" :placeholder="baseUrlDefault" />
+          <small>Standard vom Server: {{ baseUrlDefault }}</small>
         </div>
         
         <div class="form-group">
           <label>API Key</label>
-          <input type="password" v-model="settings.apiKey" placeholder="Optional: Überschreibt .env Key" />
+          <input type="password" v-model="settings.apiKey" :placeholder="apiKeyPlaceholder" :class="{'input-warning': !hasBackendKey && !settings.apiKey}" />
           <small>Wird lokal im Browser gespeichert.</small>
         </div>
         
@@ -52,7 +52,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, watch, onMounted } from 'vue'
+import { ref, reactive, watch, onMounted, computed } from 'vue'
 import { store } from '../store.js'
 
 const props = defineProps({
@@ -73,6 +73,27 @@ const isLoadingModels = ref(false)
 const fetchError = ref('')
 
 let debounceTimer = null
+
+const hasBackendKey = computed(() => {
+  if (!store.backendConfig) return false
+  if (settings.provider === 'Google Gemini') return store.backendConfig.has_google_key
+  if (settings.provider === 'Anthropic Claude') return store.backendConfig.has_anthropic_key
+  if (settings.provider === 'OpenAI / Local') return store.backendConfig.has_local_key
+  return false
+})
+
+const apiKeyPlaceholder = computed(() => {
+  if (!store.backendConfig) return "Lade Konfiguration..."
+  if (hasBackendKey.value) {
+    return "✅ Im Backend konfiguriert (Überschreiben?)"
+  } else {
+    return "⚠️ Fehlt im Backend! Bitte eingeben."
+  }
+})
+
+const baseUrlDefault = computed(() => {
+  return store.backendConfig?.local_llm_url || "http://localhost:11434/v1"
+})
 
 const fetchModels = async () => {
   isLoadingModels.value = true
@@ -272,9 +293,20 @@ onMounted(() => {
   border-radius: 8px;
   font-weight: 600;
   cursor: pointer;
+  transition: opacity 0.2s;
 }
 
 .btn-primary:hover {
-  background-color: var(--accent-hover);
+  opacity: 0.9;
+}
+
+input.input-warning {
+  border-color: #f59e0b;
+  box-shadow: 0 0 0 1px #f59e0b;
+}
+
+input:focus, select:focus {
+  outline: none;
+  border-color: var(--accent);
 }
 </style>
