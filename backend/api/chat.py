@@ -75,9 +75,9 @@ async def generate_chat_summary(req: ChatSummaryRequest):
 async def websocket_chat_endpoint(websocket: WebSocket):
     await websocket.accept()
     
-    # Callback für Tool-Status-Updates
+    # Callback für Tool-Status-Updates (als 'thinking' damit sie im Verlauf bleiben)
     async def send_status(message: str):
-        await websocket.send_json({"type": "status", "text": message})
+        await websocket.send_json({"type": "thinking", "text": message})
         
     # Initiale Abhängigkeiten (Deps) für diesen Socket/User
     deps = PortfolioDeps(
