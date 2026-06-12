@@ -143,61 +143,50 @@ async def websocket_chat_endpoint(websocket: WebSocket):
                 
                 # --- Pre-Search Logik (Agent 1) ---
                 search_context = ""
-                if "analysiere" in user_message.lower():
-                    from agent.research_agent import research_agent
+                from agent.research_agent import research_agent, ResearchDeps
+                from pydantic_ai import Agent
+                
+                # 1. Router: Brauchen wir Research?
+                router_agent = Agent(
+                    model=ai_model,
+                    result_type=bool,
+                    system_prompt=(
+                        "Entscheide, ob zur Beantwortung der User-Frage eine Internetrecherche (News) "
+                        "oder aktuelle Live-Kurse (Börsen-Ticker) zwingend nötig sind. "
+                        "Antworte mit True, wenn ja, ansonsten mit False."
+                    )
+                )
+                
+                await websocket.send_json({"type": "thinking", "text": "🤔 Prüfe ob externe Recherche nötig ist..."})
+                try:
+                    router_prompt = f"User: {user_message}"
+                    route_result = await router_agent.run(router_prompt)
+                    needs_research = route_result.data
                     
-                    await websocket.send_json({"type": "thinking", "text": "🤔 Generiere Suchanfragen für das Portfolio..."})
-                    try:
+                    if needs_research:
+                        await websocket.send_json({"type": "thinking", "text": "🔎 Aktiviere Research Agent für Informationsbeschaffung..."})
+                        
                         research_prompt = user_message
                         if deps.has_portfolio_loaded:
-                            research_prompt += f"\n\nPortfolio:\n{deps.portfolio_summary}"
+                            research_prompt += f"\n\nPortfolio Kontext:\n{deps.portfolio_summary}"
                             
-                        # Den Research-Agenten mit dem gleichen Modell aufrufen
+                        # Baue Research Dependencies für Status Callbacks
+                        res_deps = ResearchDeps(status_callback=send_status)
+                        
                         research_result = await research_agent.run(
                             research_prompt,
-                            model=ai_model
+                            model=ai_model,
+                            deps=res_deps
                         )
                         
-                        queries = research_result.output.web_queries
-                        reasoning = research_result.output.reasoning
-                        tickers = research_result.output.tickers
+                        result_text = research_result.data
+                        if "Keine Recherche nötig" not in result_text:
+                            search_context = f"\n\n--- AKTUELLE RECHERCHE-ERGEBNISSE ---\n{result_text}\n-----------------------------------"
+                    else:
+                        await websocket.send_json({"type": "thinking", "text": "ℹ️ Keine externe Websuche nötig."})
                         
-                        if queries or tickers:
-                            await websocket.send_json({"type": "thinking", "text": f"💡 Strategie: {reasoning}"})
-                            
-                            import asyncio
-                            from ddgs import DDGS
-                            
-                            all_results = []
-                            for q in queries:
-                                await websocket.send_json({"type": "thinking", "text": f"🔎 Suche im Web nach: '{q}'..."})
-                                
-                                def do_search(query):
-                                    with DDGS() as ddgs:
-                                        return list(ddgs.text(query, max_results=2))
-                                        
-                                try:
-                                    # Fallback bei blockierenden Calls
-                                    res = await asyncio.to_thread(do_search, q)
-                                    if res:
-                                        await websocket.send_json({"type": "thinking", "text": f"✅ {len(res)} Ergebnisse für '{q}' gefunden."})
-                                        for r in res:
-                                            url = r.get('href', 'Unbekannt')
-                                            all_results.append(f"- {r['title']} (Quelle: {url}): {r['body']}")
-                                except Exception as e:
-                                    await websocket.send_json({"type": "thinking", "text": f"⚠️ Suche nach '{q}' fehlgeschlagen."})
-                                    
-                            if tickers:
-                                await websocket.send_json({"type": "thinking", "text": f"📊 Folgende Ticker wurden identifiziert: {', '.join(tickers)}"})
-                                # Hier könnten künftig Live-Kurse via yfinance abgerufen werden
-                                    
-                            if all_results:
-                                search_context = f"\n\n--- AKTUELLE MARKT-NEWS (Vom Research Agenten) ---\n" + "\n".join(all_results)
-                        else:
-                            await websocket.send_json({"type": "thinking", "text": "ℹ️ Keine Websuche nötig."})
-                            
-                    except Exception as e:
-                        await websocket.send_json({"type": "thinking", "text": f"⚠️ Research fehlgeschlagen: {str(e)}"})
+                except Exception as e:
+                    await websocket.send_json({"type": "thinking", "text": f"⚠️ Research fehlgeschlagen: {str(e)}"})
                 
                 final_prompt = user_message + search_context
                 
