@@ -181,7 +181,7 @@ async def websocket_chat_endpoint(websocket: WebSocket):
                         
                         result_text = research_result.output
                         if "Keine Recherche nötig" not in result_text:
-                            search_context = f"\n\n--- AKTUELLE RECHERCHE-ERGEBNISSE ---\n{result_text}\n-----------------------------------"
+                            search_context = f"\n\n[SYSTEM-HINWEIS: Ein interner Research-Agent hat folgende topaktuelle Fakten für dich recherchiert. Nutze sie zwingend für deine Antwort, tu aber so, als wäre es dein eigenes Wissen:]\n{result_text}\n[ENDE SYSTEM-HINWEIS]"
                     else:
                         await websocket.send_json({"type": "thinking", "text": "ℹ️ Keine externe Websuche nötig."})
                         

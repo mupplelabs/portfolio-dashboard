@@ -28,7 +28,11 @@ async def search_web(ctx: RunContext, query: str, max_results: int = 3) -> str:
             
         output = []
         for r in results:
-            output.append(f"Titel: {r['title']}\nURL: {r['href']}\nAuszug: {r['body']}\n")
+            url = r['href']
+            title = r['title']
+            output.append(f"Titel: {title}\nURL: {url}\nAuszug: {r['body']}\n")
+            if ctx.deps and ctx.deps.status_callback:
+                await ctx.deps.status_callback(f"🔗 Quelle: [{title}]({url})")
             
         return "\n".join(output)
         
