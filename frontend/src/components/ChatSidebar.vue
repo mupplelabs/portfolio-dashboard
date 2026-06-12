@@ -39,6 +39,16 @@
         </button>
         <!-- Eigentliche Nachricht -->
         <div class="message-content" v-html="formatMessage(msg.content)"></div>
+        <!-- Retry Button für Fehler -->
+        <div v-if="msg.isError" class="retry-action">
+          <button class="retry-btn" @click="retryLastRequest">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="23 4 23 10 17 10"></polyline>
+              <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+            </svg>
+            Erneut versuchen
+          </button>
+        </div>
       </div>
       
       <!-- Aktiver Thinking State bevor die echte Nachricht kommt -->
@@ -147,7 +157,7 @@ const connectWebSocket = () => {
       isWaiting.value = false
       chatStatus.value = ''
     } else if (data.type === 'error') {
-      store.chatHistory.push({ role: 'assistant', content: `❌ Fehler: ${data.text}` })
+      store.chatHistory.push({ role: 'assistant', content: `❌ Fehler: ${data.text}`, isError: true })
       isWaiting.value = false
       chatStatus.value = ''
       thinkingMode.value = false
@@ -181,6 +191,31 @@ const sendMessage = () => {
   }))
   
   scrollToBottom()
+}
+
+const retryLastRequest = () => {
+  if (isWaiting.value) return
+  
+  // Finde den Index der letzten User-Nachricht
+  let lastUserMsgIndex = -1
+  for (let i = store.chatHistory.length - 1; i >= 0; i--) {
+    if (store.chatHistory[i].role === 'user') {
+      lastUserMsgIndex = i
+      break
+    }
+  }
+  
+  if (lastUserMsgIndex === -1) return
+  
+  // Speichere den Text der letzten User-Nachricht
+  const text = store.chatHistory[lastUserMsgIndex].content
+  
+  // Lösche alles ab dieser Nachricht aus der History
+  store.chatHistory.splice(lastUserMsgIndex)
+  
+  // Setze den Text und sende ab
+  currentInput.value = text
+  sendMessage()
 }
 
 const scrollToBottom = async () => {
@@ -234,7 +269,13 @@ const clearChat = () => {
 
 watch(() => store.triggerAnalysis, (newVal) => {
   if (newVal > 0) {
-    currentInput.value = "Bitte analysiere das folgende Portfolio als Finanzberater. Identifiziere Klumpenrisiken, fehlende Diversifikation und gib konkrete Handlungsempfehlungen."
+    if (store.analysisMode === 'macro') {
+      currentInput.value = "Bitte analysiere das folgende Portfolio als Finanzberater. Identifiziere Klumpenrisiken, fehlende Diversifikation und gib konkrete Handlungsempfehlungen. Beziehe dabei explizit die aktuelle Marktsituation, globale Zinsentwicklungen und relevante News in deine Bewertung mit ein."
+    } else if (store.analysisMode === 'dividend') {
+      currentInput.value = "Bitte analysiere das folgende Portfolio als Finanzberater mit Fokus auf Dividenden. Bewerte die Nachhaltigkeit der Ausschüttungen, suche nach Hinweisen auf mögliche Dividendenkürzungen bei den Top-Positionen und gib Handlungsempfehlungen."
+    } else {
+      currentInput.value = "Bitte analysiere das folgende Portfolio als Finanzberater. Identifiziere Klumpenrisiken, fehlende Diversifikation und gib konkrete Handlungsempfehlungen anhand der Portfolio-Struktur."
+    }
     sendMessage()
   }
 })
@@ -334,6 +375,31 @@ body.light-theme .new-chat-btn:hover {
   overflow-wrap: break-word;
   word-break: break-word;
   position: relative;
+}
+
+.retry-action {
+  margin-top: 0.75rem;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.retry-btn {
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: #ef4444;
+  padding: 0.4rem 0.8rem;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  transition: all 0.2s;
+}
+
+.retry-btn:hover {
+  background: rgba(239, 68, 68, 0.2);
+  border-color: rgba(239, 68, 68, 0.5);
 }
 
 .copy-btn {

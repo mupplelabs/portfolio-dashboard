@@ -116,12 +116,8 @@ async def websocket_chat_endpoint(websocket: WebSocket):
             ai_model = 'google:gemini-2.5-flash' # Default
             if provider == "Anthropic Claude":
                 if api_key:
-                    from pydantic_ai.providers.anthropic import AnthropicProvider
-                    from pydantic_ai.models.anthropic import AnthropicModel
-                    custom_provider = AnthropicProvider(api_key=api_key)
-                    ai_model = AnthropicModel(model_name, provider=custom_provider)
-                else:
-                    ai_model = f"anthropic:{model_name}"
+                    os.environ["ANTHROPIC_API_KEY"] = api_key
+                ai_model = f"anthropic:{model_name}"
             elif provider == "Google Gemini":
                 if api_key:
                     from pydantic_ai.providers.google import GoogleProvider
@@ -149,19 +145,25 @@ async def websocket_chat_endpoint(websocket: WebSocket):
                 # 1. Router: Brauchen wir Research?
                 router_agent = Agent(
                     model=ai_model,
-                    output_type=bool,
+                    output_type=str,
                     system_prompt=(
                         "Entscheide, ob zur Beantwortung der User-Frage eine Internetrecherche (News) "
                         "oder aktuelle Live-Kurse (Börsen-Ticker) zwingend nötig sind. "
-                        "Antworte mit True, wenn ja, ansonsten mit False."
+                        "Antworte exakt nur mit dem Wort 'True', wenn ja, ansonsten exakt mit 'False'."
                     )
                 )
                 
                 await websocket.send_json({"type": "thinking", "text": "🤔 Prüfe ob externe Recherche nötig ist..."})
                 try:
                     router_prompt = f"User: {user_message}"
+                    if deps.has_portfolio_loaded:
+                        router_prompt += f"\n\nPortfolio Kontext:\n{deps.portfolio_summary}"
+                        
                     route_result = await router_agent.run(router_prompt)
-                    needs_research = route_result.output
+                    
+                    # Parse boolean from string response to avoid forced tool_choice compatibility issues
+                    result_str = route_result.output.strip().lower()
+                    needs_research = "true" in result_str
                     
                     if needs_research:
                         await websocket.send_json({"type": "thinking", "text": "🔎 Aktiviere Research Agent für Informationsbeschaffung..."})
@@ -186,7 +188,8 @@ async def websocket_chat_endpoint(websocket: WebSocket):
                         await websocket.send_json({"type": "thinking", "text": "ℹ️ Keine externe Websuche nötig."})
                         
                 except Exception as e:
-                    await websocket.send_json({"type": "thinking", "text": f"⚠️ Research fehlgeschlagen: {str(e)}"})
+                    await websocket.send_json({"type": "error", "text": str(e)})
+                    continue
                 
                 final_prompt = user_message + search_context
                 

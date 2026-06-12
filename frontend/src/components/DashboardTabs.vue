@@ -22,9 +22,16 @@
               </button>
               <input type="file" id="global-csv-upload" accept=".csv" @change="uploadCSV" :disabled="store.isUploading" />
             </div>
-            <button v-if="store.portfolioLoaded" class="btn-accent" @click="store.triggerAnalysis = Date.now()">
-              🤖 Portfolio Analysieren
-            </button>
+            <div v-if="store.portfolioLoaded" class="analysis-controls">
+              <select v-model="store.analysisMode" class="analysis-mode-select">
+                <option value="standard">Struktur-Analyse</option>
+                <option value="macro">Makro-Fokus (Zinsen & News)</option>
+                <option value="dividend">Dividenden-Fokus</option>
+              </select>
+              <button class="btn-accent" @click="store.triggerAnalysis = Date.now()">
+                🤖 Analysieren
+              </button>
+            </div>
           </div>
         </div>
         
@@ -451,6 +458,30 @@ const renderCharts = () => {
   background: rgba(255, 255, 255, 0.1);
   padding: 2px 4px;
   border-radius: 4px;
+  padding: 2px 4px;
+  border-radius: 4px;
+}
+
+.analysis-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.analysis-mode-select {
+  background: var(--bg-card);
+  color: var(--text-main);
+  border: 1px solid var(--border-color);
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.analysis-mode-select:focus {
+  border-color: #3b82f6;
 }
 
 .text-positive { color: #22c55e; }

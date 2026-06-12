@@ -11,6 +11,7 @@ export const store = reactive({
   positions: [],
   chatHistory: [],
   triggerAnalysis: 0,
+  analysisMode: 'standard',
   
   llmSettings: {
     provider: localStorage.getItem('llm_provider') || 'Google Gemini',

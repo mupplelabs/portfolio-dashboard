@@ -70,9 +70,16 @@
     <div class="table-container">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
         <h3 style="margin: 0;">📋 Deine Wertpapiere ({{ store.positions.length }})</h3>
-        <button v-if="store.portfolioLoaded" class="btn-accent" @click="store.triggerAnalysis = Date.now()">
-          🤖 Portfolio Analysieren
-        </button>
+        <div v-if="store.portfolioLoaded" class="analysis-controls">
+          <select v-model="store.analysisMode" class="analysis-mode-select">
+            <option value="standard">Struktur-Analyse</option>
+            <option value="macro">Makro-Fokus (Zinsen & News)</option>
+            <option value="dividend">Dividenden-Fokus</option>
+          </select>
+          <button class="btn-accent" @click="store.triggerAnalysis = Date.now()">
+            🤖 Analysieren
+          </button>
+        </div>
       </div>
       
       <div v-if="store.positions.length === 0" class="empty-state">
@@ -435,6 +442,7 @@ const formatNumber = (val) => {
   padding: 1.5rem;
   border-radius: 8px;
   border: 1px solid var(--border-color);
+  overflow-x: auto;
 }
 
 .table-container h3 { margin-top: 0; margin-bottom: 1.5rem; }
@@ -488,6 +496,28 @@ const formatNumber = (val) => {
   color: var(--text-secondary);
   background: rgba(0,0,0,0.1);
   border-radius: 8px;
+}
+
+.analysis-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.analysis-mode-select {
+  background: var(--bg-card);
+  color: var(--text-main);
+  border: 1px solid var(--border-color);
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.analysis-mode-select:focus {
+  border-color: #3b82f6;
 }
 
 /* Inline Edit Styles */
