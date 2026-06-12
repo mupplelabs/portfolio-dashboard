@@ -149,7 +149,7 @@ async def websocket_chat_endpoint(websocket: WebSocket):
                 # 1. Router: Brauchen wir Research?
                 router_agent = Agent(
                     model=ai_model,
-                    result_type=bool,
+                    output_type=bool,
                     system_prompt=(
                         "Entscheide, ob zur Beantwortung der User-Frage eine Internetrecherche (News) "
                         "oder aktuelle Live-Kurse (Börsen-Ticker) zwingend nötig sind. "

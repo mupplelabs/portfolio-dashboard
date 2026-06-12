@@ -12,7 +12,7 @@ class ResearchDeps:
 # statt nur einer strukturierten Liste von Queries.
 research_agent = Agent(
     deps_type=ResearchDeps,
-    result_type=str,
+    output_type=str,
     retries=2
 )
 
