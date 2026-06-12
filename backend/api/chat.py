@@ -161,7 +161,7 @@ async def websocket_chat_endpoint(websocket: WebSocket):
                 try:
                     router_prompt = f"User: {user_message}"
                     route_result = await router_agent.run(router_prompt)
-                    needs_research = route_result.data
+                    needs_research = route_result.output
                     
                     if needs_research:
                         await websocket.send_json({"type": "thinking", "text": "🔎 Aktiviere Research Agent für Informationsbeschaffung..."})
@@ -179,7 +179,7 @@ async def websocket_chat_endpoint(websocket: WebSocket):
                             deps=res_deps
                         )
                         
-                        result_text = research_result.data
+                        result_text = research_result.output
                         if "Keine Recherche nötig" not in result_text:
                             search_context = f"\n\n--- AKTUELLE RECHERCHE-ERGEBNISSE ---\n{result_text}\n-----------------------------------"
                     else:
