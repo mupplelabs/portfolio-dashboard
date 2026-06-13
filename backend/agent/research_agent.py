@@ -28,7 +28,7 @@ def add_research_prompt(ctx: RunContext) -> str:
         "1. Nutze die verfügbaren Tools (search_web, get_live_ticker_data, read_webpage) so oft wie nötig.\n"
         "2. Wenn die Frage offensichtlich kein aktuelles Wissen erfordert, gib einfach 'Keine Recherche nötig.' zurück.\n"
         "3. Lese komplette Artikel via read_webpage nur, wenn die Such-Snippets nicht ausreichen.\n"
-        "4. Fasse am Ende alle gefundenen relevanten Fakten kompakt zusammen. Diese Zusammenfassung "
+        "4. Fasse am Ende alle gefundenen relevanten Fakten kompakt zusammen. **Zwingend erforderlich:** Notiere bei jedem Fakt die genaue Quell-URL, damit der Haupt-Agent diese als Markdown-Link zitieren kann. Diese Zusammenfassung "
         "wird als Kontext an den Haupt-Agenten übergeben."
     )
 

@@ -191,9 +191,9 @@ async def websocket_chat_endpoint(websocket: WebSocket):
                         result_text = research_result.output
                         if "Keine Recherche nötig" not in result_text:
                             if use_deep_search:
-                                search_context = f"\n\n[SYSTEM-HINWEIS: Ein lokales RAG-System hat zusammen mit dem Research-Agenten folgende topaktuelle Fakten extrahiert. Nutze sie zwingend für deine Antwort und belege deine Aussagen mit den bereitgestellten Zitationen ([Quelle X]):]\n{result_text}\n[ENDE SYSTEM-HINWEIS]"
+                                search_context = f"\n\n[SYSTEM-HINWEIS: Ein lokales RAG-System hat zusammen mit dem Research-Agenten folgende topaktuelle Fakten extrahiert. Nutze sie zwingend für deine Antwort und belege deine Aussagen zwingend mit den bereitgestellten Zitationen (inklusive der URLs als sichtbare Markdown-Links wie [Beispiel](https://...)):]\n{result_text}\n[ENDE SYSTEM-HINWEIS]"
                             else:
-                                search_context = f"\n\n[SYSTEM-HINWEIS: Ein interner Research-Agent hat folgende topaktuelle Fakten für dich recherchiert. Nutze sie zwingend für deine Antwort, tu aber so, als wäre es dein eigenes Wissen:]\n{result_text}\n[ENDE SYSTEM-HINWEIS]"
+                                search_context = f"\n\n[SYSTEM-HINWEIS: Ein interner Research-Agent hat folgende topaktuelle Fakten für dich recherchiert. Nutze sie zwingend für deine Antwort und belege deine Aussagen zwingend mit den bereitgestellten Zitationen (inklusive der URLs als sichtbare Markdown-Links wie [Beispiel](https://...)):]\n{result_text}\n[ENDE SYSTEM-HINWEIS]"
                     else:
                         await websocket.send_json({"type": "thinking", "text": "ℹ️ Keine externe Websuche nötig."})
                         
