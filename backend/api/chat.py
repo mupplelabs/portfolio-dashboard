@@ -224,9 +224,20 @@ async def websocket_chat_endpoint(websocket: WebSocket):
                 # Sende End-Signal
                 await websocket.send_json({"type": "done"})
                 
+            except WebSocketDisconnect:
+                print("Client hat die Verbindung während der Generierung abgebrochen.")
+                break
+            except RuntimeError as e:
+                if "close message has been sent" in str(e):
+                    print("Verbindung bereits geschlossen.")
+                    break
+                raise
             except Exception as e:
-                await websocket.send_json({"type": "error", "text": f"Agent Error: {str(e)}"})
-                
+                try:
+                    await websocket.send_json({"type": "error", "text": f"Agent Error: {str(e)}"})
+                except RuntimeError:
+                    print("Konnte Fehler nicht senden, da WebSocket bereits geschlossen ist.")
+                    break
     except WebSocketDisconnect:
         print("Client disconnected")
 
