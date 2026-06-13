@@ -53,30 +53,30 @@ async def run_rag_search(query: str, use_reranker: bool = False, status_callback
     chunks = []
     sources = []
     
-    if status_callback:
-        await status_callback(f"📄 Scraping von {len(results)} Webseiten...")
-        
-    def scrape_and_chunk():
-        local_chunks = []
-        local_sources = []
-        for r in results:
+    import httpx
+    
+    chunks = []
+    sources = []
+    
+    async with httpx.AsyncClient(timeout=10.0, follow_redirects=True) as client:
+        for idx, r in enumerate(results):
             url = r['href']
-            # Download und Extraktion
-            html = trafilatura.fetch_url(url)
-            if html:
-                text = trafilatura.extract(html)
-                if text:
-                    # Chunking: 800 Zeichen Länge, 600 Zeichen Schrittweite (200 Z. Überlappung)
-                    site_chunks = [text[i:i+800] for i in range(0, len(text), 600)]
-                    for c in site_chunks:
-                        local_chunks.append(c)
-                        local_sources.append(url)
-        return local_chunks, local_sources
-        
-    try:
-        chunks, sources = await asyncio.to_thread(scrape_and_chunk)
-    except Exception as e:
-        return f"Fehler beim Scraping: {str(e)}"
+            if status_callback:
+                await status_callback(f"📄 Scraping ({idx+1}/{len(results)}): {url[:45]}...")
+                
+            try:
+                response = await client.get(url)
+                if response.status_code == 200:
+                    # Extraktion blockiert kurz den Eventloop, aber ist sehr schnell
+                    text = trafilatura.extract(response.text)
+                    if text:
+                        site_chunks = [text[i:i+800] for i in range(0, len(text), 600)]
+                        for c in site_chunks:
+                            chunks.append(c)
+                            sources.append(url)
+            except Exception as e:
+                print(f"RAG Scraping Fehler bei {url}: {e}")
+                continue
     
     if not chunks:
         return "Deep Search: Konnte keine auswertbaren Texte von den Webseiten extrahieren (möglicherweise Bot-Schutz)."
