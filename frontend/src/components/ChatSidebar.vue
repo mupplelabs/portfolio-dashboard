@@ -49,7 +49,7 @@
         <!-- Eigentliche Nachricht -->
         <div class="message-content" v-html="formatMessage(msg.content)"></div>
         <!-- Retry Button für Fehler oder Abbruch -->
-        <div v-if="msg.isError || msg.isAborted" class="retry-action">
+        <div v-if="(msg.isError || msg.isAborted) && index === store.chatHistory.length - 1" class="retry-action">
           <button class="retry-btn" @click="retryLastRequest">
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <polyline points="23 4 23 10 17 10"></polyline>
