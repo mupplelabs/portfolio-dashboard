@@ -184,7 +184,8 @@ async def websocket_chat_endpoint(websocket: WebSocket):
                         research_result = await research_agent.run(
                             research_prompt,
                             model=ai_model,
-                            deps=res_deps
+                            deps=res_deps,
+                            model_settings={'max_tokens': 4000}
                         )
                         
                         result_text = research_result.output
@@ -210,7 +211,8 @@ async def websocket_chat_endpoint(websocket: WebSocket):
                     final_prompt,
                     deps=deps,
                     message_history=message_history,
-                    model=ai_model
+                    model=ai_model,
+                    model_settings={'max_tokens': 8192}
                 ) as result:
                     async for chunk in result.stream_text(delta=True):
                         # Sende den Chunk sofort via WebSocket ans Frontend

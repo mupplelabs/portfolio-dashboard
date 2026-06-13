@@ -48,8 +48,8 @@
         </button>
         <!-- Eigentliche Nachricht -->
         <div class="message-content" v-html="formatMessage(msg.content)"></div>
-        <!-- Retry Button für Fehler -->
-        <div v-if="msg.isError" class="retry-action">
+        <!-- Retry Button für Fehler oder Abbruch -->
+        <div v-if="msg.isError || msg.isAborted" class="retry-action">
           <button class="retry-btn" @click="retryLastRequest">
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <polyline points="23 4 23 10 17 10"></polyline>
@@ -63,12 +63,13 @@
       <!-- Aktiver Thinking State bevor die echte Nachricht kommt -->
       <div v-if="thinkingMode" class="message-bubble assistant">
         <details class="thinking-details" open>
-          <summary>
-            <span class="spinner" style="vertical-align: middle; margin-right: 6px; width: 12px; height: 12px; border-width: 2px;"></span>
-            <span style="vertical-align: middle;">💡 Agent denkt...</span>
-          </summary>
+          <summary>💡 Agent denkt...</summary>
           <ul class="thinking-list">
             <li v-for="(thought, idx) in thinkingLogs" :key="idx">{{ thought }}</li>
+            <li class="thinking-spinner-item">
+              <span class="spinner" style="vertical-align: middle; width: 12px; height: 12px; border-width: 2px;"></span>
+              <span style="font-size: 0.8em; margin-left: 6px;">{{ thinkingTime }}s</span>
+            </li>
           </ul>
         </details>
       </div>
@@ -115,6 +116,23 @@ const messagesContainer = ref(null)
 const thinkingMode = ref(false)
 const thinkingLogs = ref([])
 const copiedIndex = ref(-1)
+const thinkingTime = ref(0)
+let thinkingTimer = null
+
+watch(thinkingMode, (newVal) => {
+  if (newVal) {
+    thinkingTime.value = 0
+    if (thinkingTimer) clearInterval(thinkingTimer)
+    thinkingTimer = setInterval(() => {
+      thinkingTime.value++
+    }, 1000)
+  } else {
+    if (thinkingTimer) {
+      clearInterval(thinkingTimer)
+      thinkingTimer = null
+    }
+  }
+})
 
 let socket = null
 
@@ -282,11 +300,23 @@ const stopGeneration = () => {
     thinkingMode.value = false
     chatStatus.value = ''
     
-    const lastMsg = store.chatHistory[store.chatHistory.length - 1]
-    if (lastMsg && lastMsg.role === 'assistant') {
-      if (!lastMsg.content) lastMsg.content = ''
-      lastMsg.content += '\n\n*(Vorgang abgebrochen)*'
+    let lastMsg = store.chatHistory[store.chatHistory.length - 1]
+    
+    if (!lastMsg || lastMsg.role !== 'assistant') {
+      const newMsg = {
+        role: 'assistant',
+        content: '',
+        thoughts: [...thinkingLogs.value],
+        isAborted: true
+      }
+      store.chatHistory.push(newMsg)
+      lastMsg = newMsg
+    } else {
+      lastMsg.isAborted = true
     }
+    
+    if (!lastMsg.content) lastMsg.content = ''
+    lastMsg.content += '\n\n*(Vorgang abgebrochen)*'
   }
 }
 
@@ -586,6 +616,10 @@ body.light-theme .bookmark-btn:hover {
 }
 .thinking-list li {
   margin-bottom: 0.25rem;
+}
+.thinking-spinner-item {
+  list-style-type: none;
+  margin-top: 0.5rem;
 }
 
 .spinner {
