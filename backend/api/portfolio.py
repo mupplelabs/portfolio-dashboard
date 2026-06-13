@@ -142,7 +142,9 @@ class PDFReportRequest(BaseModel):
     positions: list[PortfolioPosition]
     gesamtwert: float
     summary_text: str
-    chat_history: list[dict] = []
+    include_portfolio: bool = True
+    include_executive_summary: bool = True
+    additional_chapters: list[dict] = []
 
 @router.post("/report/pdf")
 async def generate_pdf(req: PDFReportRequest):
@@ -170,7 +172,9 @@ async def generate_pdf(req: PDFReportRequest):
             portfolio_df=df,
             gesamtwert=req.gesamtwert,
             summary_text=req.summary_text,
-            chat_history=req.chat_history
+            include_portfolio=req.include_portfolio,
+            include_executive_summary=req.include_executive_summary,
+            additional_chapters=req.additional_chapters
         )
         
         return Response(content=pdf_bytes, media_type="application/pdf", headers={

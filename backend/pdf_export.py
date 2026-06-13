@@ -201,7 +201,7 @@ def parse_markdown_to_platypus(md_text, styles):
         
     return flowables
 
-def generate_portfolio_pdf(portfolio_df, gesamtwert, summary_text, chat_history=None):
+def generate_portfolio_pdf(portfolio_df, gesamtwert, summary_text, include_portfolio=True, include_executive_summary=True, additional_chapters=None):
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(
         buffer, 
@@ -283,104 +283,90 @@ def generate_portfolio_pdf(portfolio_df, gesamtwert, summary_text, chat_history=
     flowables.append(Spacer(1, 20))
     
     # 2. Portfolio Table
-    flowables.append(Paragraph("Aktuelle Positionen", styles['Heading2']))
-    flowables.append(Spacer(1, 10))
-    
-    table_data = [["Wertpapier", "Anteile", "Akt. Kurs", "Gesamtwert"]]
-    for _, row in portfolio_df.iterrows():
-        wp = str(row.get('Wertpapier', ''))
-        if len(wp) > 40:
-            wp = wp[:37] + "..."
-        ant = row.get('St_Nom', 0)
-        kurs = row.get('Aktueller Kurs', row.get('Ø Kaufkurs', 0))
-        wert = row.get('Akt. Wert', row.get('Wert', 0))
+    if include_portfolio:
+        flowables.append(Paragraph("Aktuelle Positionen", styles['Heading2']))
+        flowables.append(Spacer(1, 10))
         
-        table_data.append([
-            Paragraph(wp, styles['Normal']),
-            f"{ant:,.2f}",
-            f"{kurs:,.2f} EUR",
-            f"{wert:,.2f} EUR"
+        table_data = [["Wertpapier", "Anteile", "Akt. Kurs", "Gesamtwert"]]
+        for _, row in portfolio_df.iterrows():
+            wp = str(row.get('Wertpapier', ''))
+            if len(wp) > 40:
+                wp = wp[:37] + "..."
+            ant = row.get('St_Nom', 0)
+            kurs = row.get('Aktueller Kurs', row.get('Ø Kaufkurs', 0))
+            wert = row.get('Akt. Wert', row.get('Wert', 0))
+            
+            table_data.append([
+                Paragraph(wp, styles['Normal']),
+                f"{ant:,.2f}",
+                f"{kurs:,.2f} EUR",
+                f"{wert:,.2f} EUR"
+            ])
+            
+        t = Table(table_data, colWidths=[A4[0]*0.4, A4[0]*0.15, A4[0]*0.15, A4[0]*0.15], repeatRows=1)
+        t_style = TableStyle([
+            ('BACKGROUND', (0,0), (-1,0), colors.HexColor("#21496B")),
+            ('TEXTCOLOR', (0,0), (-1,0), colors.white),
+            ('ALIGN', (0,0), (-1,-1), 'LEFT'),
+            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+            ('BOTTOMPADDING', (0,0), (-1,0), 6),
+            ('TOPPADDING', (0,0), (-1,0), 6),
+            ('GRID', (0,0), (-1,-1), 0.5, colors.white),
         ])
-        
-    t = Table(table_data, colWidths=[A4[0]*0.4, A4[0]*0.15, A4[0]*0.15, A4[0]*0.15], repeatRows=1)
-    t_style = TableStyle([
-        ('BACKGROUND', (0,0), (-1,0), colors.HexColor("#21496B")),
-        ('TEXTCOLOR', (0,0), (-1,0), colors.white),
-        ('ALIGN', (0,0), (-1,-1), 'LEFT'),
-        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-        ('BOTTOMPADDING', (0,0), (-1,0), 6),
-        ('TOPPADDING', (0,0), (-1,0), 6),
-        ('GRID', (0,0), (-1,-1), 0.5, colors.white),
-    ])
-    if HAS_DEJAVU:
-        t_style.add('FONTNAME', (0,0), (-1,-1), 'DejaVuSans')
-        t_style.add('FONTNAME', (0,0), (-1,0), 'DejaVuSans-Bold')
-        
-    for i in range(1, len(table_data)):
-        bg_color = colors.HexColor("#F0F4F8") if i % 2 == 1 else colors.white
-        t_style.add('BACKGROUND', (0, i), (-1, i), bg_color)
-    t.setStyle(t_style)
-    flowables.append(KeepTogether(t))
-    flowables.append(Spacer(1, 20))
-    
-    # 3. Add Chart Image if kaleido is available
-    tmp_img_path = os.path.join(tempfile.gettempdir(), "portfolio_chart.png")
-    try:
-        fig = px.pie(
-            portfolio_df, 
-            values='_Plot_Wert' if '_Plot_Wert' in portfolio_df.columns else 'Wert', 
-            names='Wertpapier', 
-            hole=0.4,
-            color_discrete_sequence=px.colors.qualitative.Pastel
-        )
-        fig.update_layout(showlegend=True, paper_bgcolor='white', plot_bgcolor='white', font=dict(color='black'))
-        fig.write_image(tmp_img_path, width=600, height=400)
-        flowables.append(Image(tmp_img_path, width=400, height=266))
+        if HAS_DEJAVU:
+            t_style.add('FONTNAME', (0,0), (-1,-1), 'DejaVuSans')
+            t_style.add('FONTNAME', (0,0), (-1,0), 'DejaVuSans-Bold')
+            
+        for i in range(1, len(table_data)):
+            bg_color = colors.HexColor("#F0F4F8") if i % 2 == 1 else colors.white
+            t_style.add('BACKGROUND', (0, i), (-1, i), bg_color)
+        t.setStyle(t_style)
+        flowables.append(KeepTogether(t))
         flowables.append(Spacer(1, 20))
-    except Exception:
-        pass # kaleido not installed or image failed
         
+        # 3. Add Chart Image if kaleido is available
+        tmp_img_path = os.path.join(tempfile.gettempdir(), "portfolio_chart.png")
+        try:
+            fig = px.pie(
+                portfolio_df, 
+                values='_Plot_Wert' if '_Plot_Wert' in portfolio_df.columns else 'Wert', 
+                names='Wertpapier', 
+                hole=0.4,
+                color_discrete_sequence=px.colors.qualitative.Pastel
+            )
+            fig.update_layout(showlegend=True, paper_bgcolor='white', plot_bgcolor='white', font=dict(color='black'))
+            fig.write_image(tmp_img_path, width=600, height=400)
+            flowables.append(Image(tmp_img_path, width=400, height=266))
+            flowables.append(Spacer(1, 20))
+        except Exception:
+            pass # kaleido not installed or image failed
+            
     # 4. KI Executive Summary
-    flowables.append(Paragraph("KI Executive Summary", styles['Heading2']))
-    flowables.append(Spacer(1, 10))
-    flowables.extend(parse_markdown_to_platypus(summary_text, styles))
+    if include_executive_summary and summary_text:
+        flowables.append(Paragraph("KI Executive Summary", styles['Heading2']))
+        flowables.append(Spacer(1, 10))
+        flowables.extend(parse_markdown_to_platypus(summary_text, styles))
     
     # 5. Chat-basierte Analyse-Kapitel
-    if chat_history:
-        last_user_msg = None
-        for msg in chat_history:
-            if msg['role'] == "user":
-                last_user_msg = str(msg.get('display') or msg.get('content')).strip()
-            elif msg['role'] == "model":
-                text_to_render = msg.get('display') or msg.get('content')
-                if isinstance(text_to_render, list):
-                    text_parts = [part['text'] for part in text_to_render if isinstance(part, dict) and 'text' in part]
-                    text_to_render = "".join(text_parts)
-                else:
-                    text_to_render = str(text_to_render)
+    if additional_chapters:
+        for chapter in additional_chapters:
+            title = chapter.get('title', 'Detailanalyse')
+            content = chapter.get('content', '')
+            
+            if not content.strip():
+                continue
                 
-                flowables.append(PageBreak())
-                
-                # Check if AI text already starts with a markdown heading
-                has_heading = text_to_render.lstrip().startswith('#')
-                
-                if not has_heading and last_user_msg:
-                    # Clean up user message for use as a heading (take first line if multi-line)
-                    heading_text = last_user_msg.split('\\n')[0][:80]
-                    if len(last_user_msg.split('\\n')[0]) > 80:
-                        heading_text += "..."
-                    flowables.append(Paragraph(heading_text, styles['Heading2']))
-                    flowables.append(Spacer(1, 10))
-                    
-                flowables.extend(parse_markdown_to_platypus(text_to_render, styles))
-                last_user_msg = None
+            flowables.append(PageBreak())
+            flowables.append(Paragraph(title, styles['Heading2']))
+            flowables.append(Spacer(1, 10))
+            flowables.extend(parse_markdown_to_platypus(content, styles))
             
     # Build Document
     try:
         doc.build(flowables)
         pdf_bytes = buffer.getvalue()
     finally:
-        if os.path.exists(tmp_img_path):
+        if 'tmp_img_path' in locals() and os.path.exists(tmp_img_path):
             os.remove(tmp_img_path)
             
     return pdf_bytes

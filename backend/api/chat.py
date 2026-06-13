@@ -227,3 +227,27 @@ async def websocket_chat_endpoint(websocket: WebSocket):
                 
     except WebSocketDisconnect:
         print("Client disconnected")
+
+class TitleGenerationRequest(BaseModel):
+    chat_content: str
+    provider: str = "Google Gemini"
+    model: str = "gemini-2.5-flash"
+    apiKey: str = ""
+    baseUrl: str = "http://localhost:11434/v1"
+
+@router.post("/api/chat/generate-title")
+async def generate_chat_title(req: TitleGenerationRequest):
+    from pydantic_ai import Agent
+    from llm_factory import get_llm_model
+    
+    title_agent = Agent(
+        system_prompt="Du bist ein Editor für Finanz-Reports. Generiere für den folgenden Text eine sehr kurze, prägnante Überschrift (maximal 6 Wörter, keine Satzzeichen am Ende, kein Markdown).",
+    )
+    
+    ai_model = get_llm_model(req.provider, req.model, req.apiKey, req.baseUrl)
+    
+    try:
+        result = await title_agent.run(f"Text:\n{req.chat_content}", model=ai_model)
+        return {"title": result.output.strip()}
+    except Exception as e:
+        return {"title": "KI Analyse"}

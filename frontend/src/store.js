@@ -10,6 +10,7 @@ export const store = reactive({
   },
   positions: [],
   chatHistory: [],
+  reportBookmarks: [],
   triggerAnalysis: 0,
   analysisMode: 'standard',
   
@@ -47,6 +48,45 @@ export const store = reactive({
       document.body.classList.add('light-theme')
     } else {
       document.body.classList.remove('light-theme')
+    }
+  },
+  
+  toggleBookmark(messageContent, previousUserMessage) {
+    const existingIndex = this.reportBookmarks.findIndex(b => b.content === messageContent)
+    if (existingIndex >= 0) {
+      this.reportBookmarks.splice(existingIndex, 1)
+    } else {
+      // Titel-Extraktion (Fallback auf userMessage)
+      let title = previousUserMessage || 'Analyse'
+      let content = messageContent
+      
+      const h1Match = content.match(/^#\s+(.+)$/m)
+      const h2Match = content.match(/^##\s+(.+)$/m)
+      const h3Match = content.match(/^###\s+(.+)$/m)
+      
+      let headingMatch = null
+      if (h1Match) headingMatch = h1Match
+      else if (h2Match) headingMatch = h2Match
+      else if (h3Match) headingMatch = h3Match
+
+      if (headingMatch) {
+        title = headingMatch[1].trim()
+        content = content.replace(headingMatch[0], '').trim()
+      }
+      
+      this.reportBookmarks.push({
+        id: Date.now().toString(),
+        title: title,
+        content: content,
+        originalContent: messageContent // zum späteren Abgleich
+      })
+    }
+  },
+  
+  removeBookmark(id) {
+    const index = this.reportBookmarks.findIndex(b => b.id === id)
+    if (index >= 0) {
+      this.reportBookmarks.splice(index, 1)
     }
   },
   

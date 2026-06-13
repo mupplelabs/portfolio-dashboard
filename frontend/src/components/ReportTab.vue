@@ -4,13 +4,6 @@
     <p>Erstelle einen KI-gestützten Gesamtreport deines Portfolios. Der Report wird hier angezeigt und kann als PDF exportiert werden.</p>
     
     <div class="report-controls">
-      <div class="options">
-        <label>
-          <input type="checkbox" v-model="includeChatHistory" />
-          💬 Kompletten Chat-Verlauf anhängen
-        </label>
-      </div>
-      
       <div class="actions">
         <button v-if="!isGenerating" class="btn-primary" @click="generateReport" :disabled="!store.portfolioLoaded">
           <span v-if="reportSummary">🔄 Report neu generieren</span>
@@ -54,22 +47,30 @@
       
       <hr class="divider" />
       
-      <button class="btn-primary w-full download-btn" @click="downloadPDF" :disabled="isDownloading">
+      <button class="btn-primary w-full download-btn" @click="openConfigModal" :disabled="isDownloading">
         <span v-if="isDownloading">⏳ Generiere PDF...</span>
-        <span v-else>📥 PDF herunterladen</span>
+        <span v-else>⚙️ PDF Report konfigurieren & herunterladen</span>
       </button>
     </div>
     <div v-else class="empty-state">
       <p><em>Klicke oben auf 'Report generieren', um einen KI-gestützten Gesamtreport zu erstellen.</em></p>
     </div>
+    
+    <ReportConfigModal 
+      :show="showConfigModal" 
+      :isGeneratingReport="isDownloading"
+      @close="showConfigModal = false" 
+      @confirm="handleConfigConfirm" 
+    />
   </div>
 </template>
 
 <script setup>
 import { ref } from 'vue'
 import { store } from '../store.js'
+import ReportConfigModal from './ReportConfigModal.vue'
 
-const includeChatHistory = ref(false)
+const showConfigModal = ref(false)
 const isGenerating = ref(false)
 const isDownloading = ref(false)
 const reportSummary = ref('')
@@ -151,7 +152,16 @@ const generateReport = async () => {
   }
 }
 
-const downloadPDF = async () => {
+const openConfigModal = () => {
+  showConfigModal.value = true
+}
+
+const handleConfigConfirm = async (config) => {
+  await downloadPDF(config)
+  showConfigModal.value = false
+}
+
+const downloadPDF = async (config) => {
   isDownloading.value = true
   try {
     const res = await fetch('/api/portfolio/report/pdf', {
@@ -160,8 +170,10 @@ const downloadPDF = async () => {
       body: JSON.stringify({
         positions: store.positions,
         gesamtwert: store.metrics.gesamtwert,
-        summary_text: reportSummary.value,
-        chat_history: includeChatHistory.value ? store.chatHistory : []
+        summary_text: config.includeExecutiveSummary ? reportSummary.value : "",
+        include_portfolio: config.includePortfolio,
+        include_executive_summary: config.includeExecutiveSummary,
+        additional_chapters: config.additionalChapters
       })
     })
     

@@ -37,6 +37,15 @@
             <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
           </svg>
         </button>
+        <!-- Bookmark Button für Report -->
+        <button v-if="msg.role === 'assistant' && !msg.isError" class="bookmark-btn" @click="toggleBookmark(msg, index)" :data-tooltip="isBookmarked(msg.content) ? 'Aus Report entfernen' : 'Für Report merken'" data-tooltip-pos="left">
+          <svg v-if="isBookmarked(msg.content)" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="#10b981" stroke="#10b981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
+          </svg>
+          <svg v-else xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
+          </svg>
+        </button>
         <!-- Eigentliche Nachricht -->
         <div class="message-content" v-html="formatMessage(msg.content)"></div>
         <!-- Retry Button für Fehler -->
@@ -54,7 +63,10 @@
       <!-- Aktiver Thinking State bevor die echte Nachricht kommt -->
       <div v-if="thinkingMode" class="message-bubble assistant">
         <details class="thinking-details" open>
-          <summary>💡 Agent denkt...</summary>
+          <summary>
+            <span class="spinner" style="vertical-align: middle; margin-right: 6px; width: 12px; height: 12px; border-width: 2px;"></span>
+            <span style="vertical-align: middle;">💡 Agent denkt...</span>
+          </summary>
           <ul class="thinking-list">
             <li v-for="(thought, idx) in thinkingLogs" :key="idx">{{ thought }}</li>
           </ul>
@@ -246,6 +258,22 @@ const copyText = async (text, index) => {
   }
 }
 
+const isBookmarked = (content) => {
+  return store.reportBookmarks.some(b => b.content === content || b.originalContent === content)
+}
+
+const toggleBookmark = (msg, currentIndex) => {
+  let previousUserMessage = ''
+  // Suche die letzte User-Nachricht vor dieser KI-Nachricht
+  for (let i = currentIndex - 1; i >= 0; i--) {
+    if (store.chatHistory[i].role === 'user') {
+      previousUserMessage = store.chatHistory[i].content
+      break
+    }
+  }
+  store.toggleBookmark(msg.content, previousUserMessage)
+}
+
 const stopGeneration = () => {
   if (socket && isWaiting.value) {
     socket.close() // This triggers onclose to reconnect immediately
@@ -404,33 +432,37 @@ body.light-theme .new-chat-btn:hover {
   border-color: rgba(239, 68, 68, 0.5);
 }
 
-.copy-btn {
+.copy-btn, .bookmark-btn {
   position: absolute;
   top: 0.5rem;
-  right: 0.5rem;
   background: transparent;
   border: none;
   color: var(--text-muted);
   cursor: pointer;
-  padding: 0.4rem;
+  padding: 0.25rem;
   border-radius: 4px;
   display: flex;
   align-items: center;
   justify-content: center;
-  opacity: 0;
   transition: all 0.2s;
+  opacity: 0.3;
 }
 
-.message-bubble.assistant:hover .copy-btn {
-  opacity: 0.6;
+.copy-btn {
+  right: 0.5rem;
 }
 
-.copy-btn:hover {
-  opacity: 1 !important;
+.bookmark-btn {
+  right: 2.2rem;
+}
+
+.copy-btn:hover, .bookmark-btn:hover {
+  opacity: 1;
   background: rgba(255, 255, 255, 0.1);
 }
 
-body.light-theme .copy-btn:hover {
+body.light-theme .copy-btn:hover,
+body.light-theme .bookmark-btn:hover {
   background: rgba(0, 0, 0, 0.05);
 }
 
