@@ -113,27 +113,32 @@ async def websocket_chat_endpoint(websocket: WebSocket):
             use_deep_search = data.get("useDeepSearch", False)
             use_reranker = data.get("useReranker", False)
             
+            research_provider = data.get("researchProvider", provider)
+            research_model_name = data.get("researchModel", model_name)
+            research_api_key = data.get("researchApiKey", api_key)
+            
             # PydanticAI unterstützt alle drei Provider nativ!
-            # Wir mappen sie hier auf die PydanticAI Syntax:
-            ai_model = 'google:gemini-2.5-flash' # Default
-            if provider == "Anthropic Claude":
-                if api_key:
-                    os.environ["ANTHROPIC_API_KEY"] = api_key
-                ai_model = f"anthropic:{model_name}"
-            elif provider == "Google Gemini":
-                if api_key:
-                    from pydantic_ai.providers.google import GoogleProvider
-                    from pydantic_ai.models.google import GoogleModel
-                    custom_provider = GoogleProvider(api_key=api_key)
-                    ai_model = GoogleModel(model_name, provider=custom_provider)
-                else:
-                    ai_model = f"google:{model_name}"
-            elif provider == "OpenAI / Local":
-                from pydantic_ai.providers.openai import OpenAIProvider
-                from pydantic_ai.models.openai import OpenAIChatModel
-                local_key = api_key if api_key else "dummy"
-                custom_provider = OpenAIProvider(base_url=base_url, api_key=local_key)
-                ai_model = OpenAIChatModel(model_name, provider=custom_provider)
+            # Helper Funktion um PydanticAI Model-Objekte zu generieren
+            def build_model(prov, mod_name, key, url):
+                if prov == "Anthropic Claude":
+                    if key:
+                        os.environ["ANTHROPIC_API_KEY"] = key
+                    return f"anthropic:{mod_name}"
+                elif prov == "Google Gemini":
+                    if key:
+                        from pydantic_ai.providers.google import GoogleProvider
+                        from pydantic_ai.models.google import GoogleModel
+                        return GoogleModel(mod_name, provider=GoogleProvider(api_key=key))
+                    return f"google:{mod_name}"
+                elif prov == "OpenAI / Local":
+                    from pydantic_ai.providers.openai import OpenAIProvider
+                    from pydantic_ai.models.openai import OpenAIChatModel
+                    local_key = key if key else "dummy"
+                    return OpenAIChatModel(mod_name, provider=OpenAIProvider(base_url=url, api_key=local_key))
+                return f"google:{mod_name}"
+
+            ai_model = build_model(provider, model_name, api_key, base_url)
+            research_ai_model = build_model(research_provider, research_model_name, research_api_key, base_url)
 
             try:
                 # Sende initiales Status-Update
@@ -146,7 +151,7 @@ async def websocket_chat_endpoint(websocket: WebSocket):
                 
                 # 1. Router: Brauchen wir Research?
                 router_agent = Agent(
-                    model=ai_model,
+                    model=research_ai_model,
                     output_type=str,
                     system_prompt=(
                         "Entscheide, ob zur Beantwortung der User-Frage eine Internetrecherche (z.B. nach aktuellen News, "
@@ -183,7 +188,7 @@ async def websocket_chat_endpoint(websocket: WebSocket):
                         
                         research_result = await research_agent.run(
                             research_prompt,
-                            model=ai_model,
+                            model=research_ai_model,
                             deps=res_deps,
                             model_settings={'max_tokens': 4000}
                         )

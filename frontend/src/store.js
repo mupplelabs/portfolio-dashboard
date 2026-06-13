@@ -17,10 +17,16 @@ export const store = reactive({
   llmSettings: {
     provider: localStorage.getItem('llm_provider') || 'Google Gemini',
     model: localStorage.getItem('llm_model') || 'gemini-2.5-flash',
-    apiKey: localStorage.getItem('llm_api_key') || '',
+    apiKeys: {
+      'Google Gemini': localStorage.getItem('llm_api_key_google') || localStorage.getItem('llm_api_key') || '',
+      'Anthropic Claude': localStorage.getItem('llm_api_key_anthropic') || '',
+      'OpenAI / Local': localStorage.getItem('llm_api_key_openai') || ''
+    },
     baseUrl: localStorage.getItem('llm_base_url') || '', // Wird später durch backendConfig ergänzt, falls leer
     useDeepSearch: localStorage.getItem('llm_use_deep_search') === 'true',
-    useReranker: localStorage.getItem('llm_use_reranker') === 'true'
+    useReranker: localStorage.getItem('llm_use_reranker') === 'true',
+    researchProvider: localStorage.getItem('llm_research_provider') || 'Google Gemini',
+    researchModel: localStorage.getItem('llm_research_model') || 'gemini-2.5-flash'
   },
   
   backendConfig: null,
