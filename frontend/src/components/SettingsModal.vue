@@ -42,6 +42,24 @@
           <small v-if="fetchError" class="error-text">⚠️ {{ fetchError }}</small>
         </div>
         
+        <hr style="border: 0; border-top: 1px solid var(--border-color); margin: 0.5rem 0;" />
+        
+        <div class="form-group checkbox-group">
+          <label class="checkbox-label" style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-weight: 600;">
+            <input type="checkbox" v-model="settings.useDeepSearch" style="width: 1.2rem; height: 1.2rem;" />
+            <span>Deep Semantic Search (RAG)</span>
+          </label>
+          <small>Aktiviert eine tiefe Websuche via Scraping & lokaler Vektorsuche. (Verzögert Antworten um ca. 5-15s)</small>
+        </div>
+
+        <div class="form-group checkbox-group" v-if="settings.useDeepSearch" style="margin-left: 1.5rem; border-left: 2px solid var(--accent-color); padding-left: 1rem;">
+          <label class="checkbox-label" style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-weight: 600;">
+            <input type="checkbox" v-model="settings.useReranker" style="width: 1.2rem; height: 1.2rem;" />
+            <span>Pro: Cross-Encoder Re-Ranker</span>
+          </label>
+          <small style="color: #fbbf24;">⚠️ Benötigt ca. 1.5 GB RAM auf dem Server! Erhöht die Präzision maximal.</small>
+        </div>
+        
       </div>
       
       <div class="modal-footer" style="display: flex; justify-content: space-between;">
@@ -66,7 +84,9 @@ const settings = reactive({
   provider: store.llmSettings.provider,
   model: store.llmSettings.model,
   apiKey: store.llmSettings.apiKey,
-  baseUrl: store.llmSettings.baseUrl
+  baseUrl: store.llmSettings.baseUrl,
+  useDeepSearch: store.llmSettings.useDeepSearch,
+  useReranker: store.llmSettings.useReranker
 })
 
 const availableModels = ref([])
@@ -143,6 +163,8 @@ watch(() => props.show, (newVal) => {
     settings.model = store.llmSettings.model
     settings.apiKey = store.llmSettings.apiKey
     settings.baseUrl = store.llmSettings.baseUrl
+    settings.useDeepSearch = store.llmSettings.useDeepSearch
+    settings.useReranker = store.llmSettings.useReranker
     fetchModels()
   }
 })
@@ -152,11 +174,15 @@ const saveSettings = () => {
   store.llmSettings.model = settings.model
   store.llmSettings.apiKey = settings.apiKey
   store.llmSettings.baseUrl = settings.baseUrl
+  store.llmSettings.useDeepSearch = settings.useDeepSearch
+  store.llmSettings.useReranker = settings.useReranker
   
   localStorage.setItem('llm_provider', settings.provider)
   localStorage.setItem('llm_model', settings.model)
   localStorage.setItem('llm_api_key', settings.apiKey)
   localStorage.setItem('llm_base_url', settings.baseUrl)
+  localStorage.setItem('llm_use_deep_search', settings.useDeepSearch)
+  localStorage.setItem('llm_use_reranker', settings.useReranker)
   
   emit('close')
 }
@@ -166,16 +192,22 @@ const resetSettings = () => {
   localStorage.removeItem('llm_model')
   localStorage.removeItem('llm_api_key')
   localStorage.removeItem('llm_base_url')
+  localStorage.removeItem('llm_use_deep_search')
+  localStorage.removeItem('llm_use_reranker')
   
   store.llmSettings.provider = 'Google Gemini'
   store.llmSettings.model = 'gemini-2.5-flash'
   store.llmSettings.apiKey = ''
   store.llmSettings.baseUrl = store.backendConfig?.local_llm_url || ''
+  store.llmSettings.useDeepSearch = false
+  store.llmSettings.useReranker = false
   
   settings.provider = store.llmSettings.provider
   settings.model = store.llmSettings.model
   settings.apiKey = store.llmSettings.apiKey
   settings.baseUrl = store.llmSettings.baseUrl
+  settings.useDeepSearch = store.llmSettings.useDeepSearch
+  settings.useReranker = store.llmSettings.useReranker
   
   emit('close')
 }

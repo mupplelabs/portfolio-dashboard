@@ -13,6 +13,14 @@ async def search_web(ctx: RunContext, query: str, max_results: int = 3) -> str:
     Es liefert kurze Snippets und die URLs der Ergebnisse zurück.
     """
     try:
+        if ctx.deps and getattr(ctx.deps, 'use_deep_search', False):
+            from rag.rag_pipeline import run_rag_search
+            return await run_rag_search(
+                query, 
+                getattr(ctx.deps, 'use_reranker', False), 
+                getattr(ctx.deps, 'status_callback', None)
+            )
+            
         if ctx.deps and hasattr(ctx.deps, 'status_callback') and ctx.deps.status_callback:
             await ctx.deps.status_callback(f"🔎 Suche im Web nach: '{query}'...")
             

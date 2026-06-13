@@ -3,6 +3,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        - INSTALL_RAG=true
     container_name: investiq
     ports:
       - "8080:8000"

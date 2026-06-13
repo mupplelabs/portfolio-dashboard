@@ -110,6 +110,8 @@ async def websocket_chat_endpoint(websocket: WebSocket):
             model_name = data.get("model", "gemini-2.5-flash")
             api_key = data.get("apiKey", "")
             base_url = data.get("baseUrl", "http://localhost:11434/v1")
+            use_deep_search = data.get("useDeepSearch", False)
+            use_reranker = data.get("useReranker", False)
             
             # PydanticAI unterstützt alle drei Provider nativ!
             # Wir mappen sie hier auf die PydanticAI Syntax:
@@ -147,9 +149,9 @@ async def websocket_chat_endpoint(websocket: WebSocket):
                     model=ai_model,
                     output_type=str,
                     system_prompt=(
-                        "Entscheide, ob zur Beantwortung der User-Frage eine Internetrecherche (News) "
-                        "oder aktuelle Live-Kurse (Börsen-Ticker) zwingend nötig sind. "
-                        "Antworte exakt nur mit dem Wort 'True', wenn ja, ansonsten exakt mit 'False'."
+                        "Entscheide, ob zur Beantwortung der User-Frage eine Internetrecherche (z.B. nach aktuellen News, "
+                        "Hintergrundinformationen zu bestimmten Firmen/Produkten) oder aktuelle Live-Kurse (Börsen-Ticker) nötig sind. "
+                        "Antworte exakt nur mit dem Wort 'True', wenn eine externe Recherche hilfreich wäre, ansonsten exakt mit 'False'."
                     )
                 )
                 
@@ -173,7 +175,11 @@ async def websocket_chat_endpoint(websocket: WebSocket):
                             research_prompt += f"\n\nPortfolio Kontext:\n{deps.portfolio_summary}"
                             
                         # Baue Research Dependencies für Status Callbacks
-                        res_deps = ResearchDeps(status_callback=send_status)
+                        res_deps = ResearchDeps(
+                            status_callback=send_status,
+                            use_deep_search=use_deep_search,
+                            use_reranker=use_reranker
+                        )
                         
                         research_result = await research_agent.run(
                             research_prompt,
@@ -183,7 +189,10 @@ async def websocket_chat_endpoint(websocket: WebSocket):
                         
                         result_text = research_result.output
                         if "Keine Recherche nötig" not in result_text:
-                            search_context = f"\n\n[SYSTEM-HINWEIS: Ein interner Research-Agent hat folgende topaktuelle Fakten für dich recherchiert. Nutze sie zwingend für deine Antwort, tu aber so, als wäre es dein eigenes Wissen:]\n{result_text}\n[ENDE SYSTEM-HINWEIS]"
+                            if use_deep_search:
+                                search_context = f"\n\n[SYSTEM-HINWEIS: Ein lokales RAG-System hat zusammen mit dem Research-Agenten folgende topaktuelle Fakten extrahiert. Nutze sie zwingend für deine Antwort und belege deine Aussagen mit den bereitgestellten Zitationen ([Quelle X]):]\n{result_text}\n[ENDE SYSTEM-HINWEIS]"
+                            else:
+                                search_context = f"\n\n[SYSTEM-HINWEIS: Ein interner Research-Agent hat folgende topaktuelle Fakten für dich recherchiert. Nutze sie zwingend für deine Antwort, tu aber so, als wäre es dein eigenes Wissen:]\n{result_text}\n[ENDE SYSTEM-HINWEIS]"
                     else:
                         await websocket.send_json({"type": "thinking", "text": "ℹ️ Keine externe Websuche nötig."})
                         

@@ -187,7 +187,9 @@ const sendMessage = () => {
     provider: store.llmSettings.provider,
     model: store.llmSettings.model,
     apiKey: store.llmSettings.apiKey,
-    baseUrl: store.llmSettings.baseUrl
+    baseUrl: store.llmSettings.baseUrl,
+    useDeepSearch: store.llmSettings.useDeepSearch,
+    useReranker: store.llmSettings.useReranker
   }))
   
   scrollToBottom()

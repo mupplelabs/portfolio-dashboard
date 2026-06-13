@@ -17,7 +17,9 @@ export const store = reactive({
     provider: localStorage.getItem('llm_provider') || 'Google Gemini',
     model: localStorage.getItem('llm_model') || 'gemini-2.5-flash',
     apiKey: localStorage.getItem('llm_api_key') || '',
-    baseUrl: localStorage.getItem('llm_base_url') || '' // Wird später durch backendConfig ergänzt, falls leer
+    baseUrl: localStorage.getItem('llm_base_url') || '', // Wird später durch backendConfig ergänzt, falls leer
+    useDeepSearch: localStorage.getItem('llm_use_deep_search') === 'true',
+    useReranker: localStorage.getItem('llm_use_reranker') === 'true'
   },
   
   backendConfig: null,

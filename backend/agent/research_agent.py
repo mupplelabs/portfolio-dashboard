@@ -7,6 +7,8 @@ from pydantic_ai import Agent, RunContext
 @dataclass
 class ResearchDeps:
     status_callback: Optional[Callable[[str], Awaitable[None]]] = None
+    use_deep_search: bool = False
+    use_reranker: bool = False
 
 # Der Research Agent gibt nun einen fertigen Text (Zusammenfassung) zurück, 
 # statt nur einer strukturierten Liste von Queries.

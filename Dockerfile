@@ -24,6 +24,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy the backend code
 COPY backend/ .
 
+# Install optional RAG dependencies if enabled
+ARG INSTALL_RAG=false
+RUN if [ "$INSTALL_RAG" = "true" ]; then pip install --no-cache-dir -r requirements-rag.txt; fi
+
 # Copy the built frontend from Stage 1 into the backend's static directory
 COPY --from=frontend-builder /app/frontend/dist /app/static
 
