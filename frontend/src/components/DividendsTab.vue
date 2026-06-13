@@ -108,7 +108,7 @@ const fetchData = async () => {
   error.value = null
   
   try {
-    const response = await fetch('http://127.0.0.1:8000/api/portfolio/dividends', {
+    const response = await fetch('/api/portfolio/dividends', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ positions: store.positions })
