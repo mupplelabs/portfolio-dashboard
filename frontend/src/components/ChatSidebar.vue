@@ -213,7 +213,8 @@ const sendMessage = () => {
   
   socket.send(JSON.stringify({
     message: text,
-    portfolio_summary: store.portfolioSummary,
+    portfolio_data: store.positions,
+    portfolio_metrics: store.metrics,
     provider: store.llmSettings.provider,
     model: store.llmSettings.model,
     apiKey: store.llmSettings.apiKeys[store.llmSettings.provider] || '',

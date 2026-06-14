@@ -83,7 +83,8 @@ async def websocket_chat_endpoint(websocket: WebSocket):
     deps = PortfolioDeps(
         user_id="default_user",
         has_portfolio_loaded=False,
-        portfolio_summary="",
+        portfolio_data=None,
+        portfolio_metrics=None,
         status_callback=send_status
     )
     
@@ -97,9 +98,10 @@ async def websocket_chat_endpoint(websocket: WebSocket):
             data = json.loads(data_str)
             
             # Update Deps, falls das Frontend aktuelle Portfolio-Zahlen mitgeschickt hat
-            if "portfolio_summary" in data:
-                deps.portfolio_summary = data["portfolio_summary"]
-                deps.has_portfolio_loaded = bool(deps.portfolio_summary)
+            if "portfolio_data" in data and "portfolio_metrics" in data:
+                deps.portfolio_data = data["portfolio_data"]
+                deps.portfolio_metrics = data["portfolio_metrics"]
+                deps.has_portfolio_loaded = bool(deps.portfolio_data and len(deps.portfolio_data) > 0)
                 
             user_message = data.get("message", "")
             if not user_message:

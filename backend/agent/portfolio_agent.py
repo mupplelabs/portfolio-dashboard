@@ -9,7 +9,8 @@ from pydantic_ai import Agent, RunContext
 class PortfolioDeps:
     user_id: str
     has_portfolio_loaded: bool = False
-    portfolio_summary: str = ""
+    portfolio_data: list = None
+    portfolio_metrics: dict = None
     status_callback: Optional[Callable[[str], Awaitable[None]]] = None
 
 # Definition des Agenten
@@ -29,10 +30,16 @@ def add_system_prompt(ctx: RunContext[PortfolioDeps]) -> str:
     base_prompt = get_advisor_system_prompt()
     
     if ctx.deps.has_portfolio_loaded:
-        portfolio_info = f"\n\n--- AKTUELLE PORTFOLIO-DATEN ---\n{ctx.deps.portfolio_summary}\n--------------------------------"
-        return base_prompt + portfolio_info
+        tool_instruction = "\n\n(Hinweis: Der Benutzer hat sein Portfolio geladen. Bitte nutze zwingend deine Portfolio-Tools (z.B. get_portfolio_overview, get_top_positions), um detaillierte und korrekte Informationen aus seinen Finanzdaten abzufragen, wenn du seine Fragen beantwortest. Erfinde oder schätze keine Portfolio-Werte!)"
+        return base_prompt + tool_instruction
     else:
         return base_prompt + "\n\n(Hinweis: Der Benutzer hat aktuell noch kein Portfolio geladen.)"
+
+import tools.portfolio_tools as pt
+portfolio_agent.tool(pt.get_portfolio_overview)
+portfolio_agent.tool(pt.get_top_positions)
+portfolio_agent.tool(pt.get_position_details)
+portfolio_agent.tool(pt.get_sector_allocation)
 
 
 
