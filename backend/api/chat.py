@@ -243,7 +243,7 @@ async def websocket_chat_endpoint(websocket: WebSocket):
                     message_history = agent_run.result.new_messages()
                     
                     # Token Tracking
-                    usage = agent_run.result.usage()
+                    usage = agent_run.result.usage
                     if usage:
                         import asyncio
                         asyncio.create_task(asyncio.to_thread(
