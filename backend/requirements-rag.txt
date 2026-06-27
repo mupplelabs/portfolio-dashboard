@@ -2,6 +2,7 @@
 # Diese werden optional installiert (INSTALL_RAG=true)
 
 sentence-transformers>=2.2.2
+semantic-router>=0.0.38
 trafilatura>=1.6.0
 scikit-learn>=1.3.0
 numpy>=1.24.0

@@ -1,13 +1,12 @@
 import os
-from semantic_router import Route
-from semantic_router.layer import RouteLayer
-from semantic_router.encoders import HuggingFaceEncoder
+try:
+    from semantic_router import Route
+    from semantic_router.layer import RouteLayer
+    from semantic_router.encoders import HuggingFaceEncoder
 
-# 1. Definiere den Encoder (gleiches lokales Modell wie im RAG, damit es gecached ist)
-# Wir nutzen paraphrase-multilingual-MiniLM-L12-v2 für deutsche Sprache!
-encoder = HuggingFaceEncoder(name="sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2")
-
-# 2. Definiere die Routen
+    # 1. Definiere den Encoder (gleiches lokales Modell wie im RAG, damit es gecached ist)
+    # Wir nutzen paraphrase-multilingual-MiniLM-L12-v2 für deutsche Sprache!
+    encoder = HuggingFaceEncoder(name="sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2")
 research_route = Route(
     name="research_needed",
     utterances=[
@@ -43,13 +42,25 @@ portfolio_route = Route(
     ]
 )
 
-# 3. Erstelle den RouteLayer
-route_layer = RouteLayer(encoder=encoder, routes=[research_route, portfolio_route])
+    # 3. Erstelle den RouteLayer
+    route_layer = RouteLayer(encoder=encoder, routes=[research_route, portfolio_route])
 
-def analyze_intent(user_input: str) -> str:
-    """
-    Nimmt den Nutzer-Input und gibt den Namen der Route zurück.
-    Gibt None zurück, wenn keine Route passt (Fallback).
-    """
-    route = route_layer(user_input)
-    return route.name if route else None
+    def analyze_intent(user_input: str) -> str:
+        """
+        Nimmt den Nutzer-Input und gibt den Namen der Route zurück.
+        Gibt None zurück, wenn keine Route passt (Fallback).
+        """
+        route = route_layer(user_input)
+        return route.name if route else None
+
+except ImportError:
+    print("WARNING: semantic_router or sentence_transformers missing. Using fallback regex router.")
+    def analyze_intent(user_input: str) -> str:
+        """
+        Fallback-Router basierend auf simplen Keywords, falls RAG-Module nicht installiert sind.
+        """
+        text = user_input.lower()
+        research_keywords = ["news", "markt", "zinsen", "inflation", "wirtschaft", "berater"]
+        if any(kw in text for kw in research_keywords):
+            return "research_needed"
+        return "portfolio_only"
