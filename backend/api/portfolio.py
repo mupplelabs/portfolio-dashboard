@@ -14,6 +14,9 @@ class PortfolioPosition(BaseModel):
     Ticker: str
     ISIN: str = ""
     WKN: str = ""
+    Typ: str = "Unbekannt"
+    Branche: str = "Unbekannt"
+    Region: str = "Unbekannt"
     St_Nom: float
     Kaufwert: float
     Avg_Kaufkurs: float
@@ -114,9 +117,12 @@ async def get_portfolio_metrics(file: UploadFile = File(...)):
             df[col] = df[col].apply(clean_number)
             
         # Fetch live prices for the uploaded CSV
-        live_prices, updated_tickers = fetch_live_prices(df)
+        live_prices, updated_tickers, metadata = fetch_live_prices(df)
         df['Live_Kurs'] = live_prices
         df['Ticker'] = updated_tickers
+        df['Typ'] = [m.get('Typ', 'Unbekannt') for m in metadata]
+        df['Branche'] = [m.get('Branche', 'Unbekannt') for m in metadata]
+        df['Region'] = [m.get('Region', 'Unbekannt') for m in metadata]
         
         # Calculate live value based on fetched prices or fallback to CSV 'Wert'
         df['Live_Kurs'] = pd.to_numeric(df['Live_Kurs'], errors='coerce')
@@ -271,6 +277,19 @@ async def search_ticker(query: str):
                 
         currency = info.get("currency", "EUR")
         
+        raw_type = info.get("quoteType") or 'Unbekannt'
+        typ_mapping = {
+            'EQUITY': 'Aktie',
+            'ETF': 'ETF',
+            'MUTUALFUND': 'Fonds',
+            'CRYPTOCURRENCY': 'Krypto',
+            'CURRENCY': 'Währung'
+        }
+        quoteType = typ_mapping.get(raw_type.upper(), raw_type)
+        
+        sector = info.get("sector") or 'Unbekannt'
+        country = info.get("country") or 'Unbekannt'
+        
         isin_val = "-"
         try:
             # Versuch die ISIN über yfinance abzurufen
@@ -285,7 +304,10 @@ async def search_ticker(query: str):
             "Wertpapier": name,
             "Aktueller_Kurs": float(price),
             "Waehrung": currency,
-            "ISIN": isin_val
+            "ISIN": isin_val,
+            "Typ": quoteType,
+            "Branche": sector,
+            "Region": country
         }
     except Exception as e:
         raise HTTPException(status_code=404, detail=f"Ticker {query} nicht gefunden: {str(e)}")

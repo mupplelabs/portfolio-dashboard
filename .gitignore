@@ -39,3 +39,7 @@ backend/static/
 
 # Scratch & Old Scripts
 _scratch/
+
+# Databases
+*.db
+*.sqlite3

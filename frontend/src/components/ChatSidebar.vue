@@ -9,6 +9,13 @@
             <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
           </svg>
         </button>
+        <button @click="showTokenDashboard = true" class="analytics-btn" data-tooltip="Token Analytics" data-tooltip-pos="bottom">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="20" x2="18" y2="10"></line>
+            <line x1="12" y1="20" x2="12" y2="4"></line>
+            <line x1="6" y1="20" x2="6" y2="14"></line>
+          </svg>
+        </button>
         <span class="status-indicator" :class="{ connected: isConnected }" :data-tooltip="isConnected ? 'Verbunden' : 'Offline'" data-tooltip-pos="bottom"></span>
       </div>
     </div>
@@ -101,17 +108,22 @@
         </button>
       </div>
     </div>
+
+    <!-- Token Dashboard Modal -->
+    <TokenDashboard v-if="showTokenDashboard" @close="showTokenDashboard = false" />
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { store } from '../store.js'
+import TokenDashboard from './TokenDashboard.vue'
 
 const currentInput = ref('')
 const isWaiting = ref(false)
 const chatStatus = ref('')
 const isConnected = ref(false)
+const showTokenDashboard = ref(false)
 const messagesContainer = ref(null)
 const thinkingMode = ref(false)
 const thinkingLogs = ref([])
@@ -134,6 +146,46 @@ watch(thinkingMode, (newVal) => {
   }
 })
 
+const logQueue = ref([])
+let queueTimer = null
+
+const processQueue = () => {
+  if (logQueue.value.length > 0) {
+    const item = logQueue.value.shift()
+    let lastMsg = store.chatHistory[store.chatHistory.length - 1]
+    if (!lastMsg || lastMsg.role !== 'assistant') {
+      store.chatHistory.push({ role: 'assistant', content: '', thoughts: [] })
+      lastMsg = store.chatHistory[store.chatHistory.length - 1]
+    }
+    if (!lastMsg.thoughts) lastMsg.thoughts = []
+    
+    if (item.type === 'status') {
+      chatStatus.value = item.text
+      const newStatus = `[System] ${item.text}`
+      if (lastMsg.thoughts.length === 0 || lastMsg.thoughts[lastMsg.thoughts.length - 1] !== newStatus) {
+        lastMsg.thoughts.push(newStatus)
+      }
+    } else if (item.type === 'tool') {
+      lastMsg.thoughts.push(`[Tool-Aufruf: ${item.tool}]`)
+    }
+    scrollToBottom()
+  }
+}
+
+onMounted(() => {
+  queueTimer = setInterval(processQueue, 400) // 400ms Verzögerung für Lesbarkeit
+  connectWebSocket()
+})
+
+onUnmounted(() => {
+  if (socket) {
+    socket.close()
+  }
+  if (queueTimer) {
+    clearInterval(queueTimer)
+  }
+})
+
 let socket = null
 
 const connectWebSocket = () => {
@@ -149,40 +201,41 @@ const connectWebSocket = () => {
   socket.onmessage = (event) => {
     const data = JSON.parse(event.data)
     
-    if (data.type === 'thinking_start') {
-      thinkingMode.value = true
-      thinkingLogs.value = []
-      scrollToBottom()
-    } else if (data.type === 'thinking') {
-      thinkingLogs.value.push(data.text)
-      scrollToBottom()
-    } else if (data.type === 'thinking_done') {
-      thinkingMode.value = false
-      // Wir fügen die gesammelten Gedanken in die Chat History als spezielles Attribut der nächsten Assistant-Nachricht ein
-      if (thinkingLogs.value.length > 0) {
-        store.chatHistory.push({ 
-          role: 'assistant', 
-          content: '', 
-          thoughts: [...thinkingLogs.value] 
-        })
-      } else {
-        store.chatHistory.push({ role: 'assistant', content: '' })
+    if (data.type === 'shift_to_thinking') {
+      let lastMsg = store.chatHistory[store.chatHistory.length - 1]
+      if (!lastMsg || lastMsg.role !== 'assistant') {
+        store.chatHistory.push({ role: 'assistant', content: '', thoughts: [] })
+        lastMsg = store.chatHistory[store.chatHistory.length - 1]
       }
-      thinkingLogs.value = []
+      
+      if (!lastMsg.thoughts) {
+        lastMsg.thoughts = []
+      }
+      if (lastMsg.content.trim()) {
+        lastMsg.thoughts.push(lastMsg.content.trim())
+      }
+      if (data.tool) {
+        logQueue.value.push({ type: 'tool', tool: data.tool })
+      }
+      lastMsg.content = ''
+      scrollToBottom()
+    } else if (data.type === 'replace') {
+      const lastMsg = store.chatHistory[store.chatHistory.length - 1]
+      if (lastMsg && lastMsg.role === 'assistant') {
+        lastMsg.content = data.text
+      }
       scrollToBottom()
     } else if (data.type === 'chunk') {
       const lastMsg = store.chatHistory[store.chatHistory.length - 1]
       if (lastMsg && lastMsg.role === 'assistant') {
         lastMsg.content += data.text
       } else {
-        // Falls chunk kommt ohne vorheriges thinking_done
-        store.chatHistory.push({ role: 'assistant', content: data.text })
+        store.chatHistory.push({ role: 'assistant', content: data.text, thoughts: [] })
       }
       chatStatus.value = ''
       scrollToBottom()
     } else if (data.type === 'status') {
-      chatStatus.value = data.text
-      scrollToBottom()
+      logQueue.value.push({ type: 'status', text: data.text })
     } else if (data.type === 'done') {
       isWaiting.value = false
       chatStatus.value = ''
@@ -334,11 +387,11 @@ const clearChat = () => {
 watch(() => store.triggerAnalysis, (newVal) => {
   if (newVal > 0) {
     if (store.analysisMode === 'macro') {
-      currentInput.value = "Bitte analysiere das folgende Portfolio als Finanzberater. Identifiziere Klumpenrisiken, fehlende Diversifikation und gib konkrete Handlungsempfehlungen. Beziehe dabei explizit die aktuelle Marktsituation, globale Zinsentwicklungen und relevante News in deine Bewertung mit ein."
+      currentInput.value = "Bitte analysiere mein Portfolio als Finanzberater. Rufe dafür zunächst zwingend deine Portfolio-Tools auf (z.B. get_portfolio_overview, get_sector_allocation, get_top_positions), um dir einen Überblick zu verschaffen. Identifiziere danach Klumpenrisiken, fehlende Diversifikation und gib konkrete Handlungsempfehlungen. Beziehe explizit Marktsituation und News ein."
     } else if (store.analysisMode === 'dividend') {
-      currentInput.value = "Bitte analysiere das folgende Portfolio als Finanzberater mit Fokus auf Dividenden. Bewerte die Nachhaltigkeit der Ausschüttungen, suche nach Hinweisen auf mögliche Dividendenkürzungen bei den Top-Positionen und gib Handlungsempfehlungen."
+      currentInput.value = "Bitte analysiere mein Portfolio als Finanzberater mit Fokus auf Dividenden. Rufe dafür zunächst zwingend deine Portfolio-Tools auf, um die Daten abzufragen. Bewerte die Nachhaltigkeit der Ausschüttungen, suche nach Hinweisen auf mögliche Dividendenkürzungen bei den Top-Positionen und gib Handlungsempfehlungen."
     } else {
-      currentInput.value = "Bitte analysiere das folgende Portfolio als Finanzberater. Identifiziere Klumpenrisiken, fehlende Diversifikation und gib konkrete Handlungsempfehlungen anhand der Portfolio-Struktur."
+      currentInput.value = "Bitte analysiere mein Portfolio als Finanzberater. Rufe dafür zunächst zwingend deine Portfolio-Tools (get_portfolio_overview, get_sector_allocation) auf, um die Daten zu laden. Identifiziere dann Klumpenrisiken, fehlende Diversifikation und gib konkrete Handlungsempfehlungen anhand der Struktur."
     }
     sendMessage()
   }
@@ -375,7 +428,7 @@ onUnmounted(() => {
   gap: 1rem;
 }
 
-.new-chat-btn {
+.new-chat-btn, .analytics-btn {
   background: transparent;
   border: none;
   color: var(--text-muted);
@@ -388,12 +441,13 @@ onUnmounted(() => {
   transition: all 0.2s;
 }
 
-.new-chat-btn:hover {
+.new-chat-btn:hover, .analytics-btn:hover {
   background: rgba(255,255,255,0.1);
   color: var(--text-main);
 }
 
-body.light-theme .new-chat-btn:hover {
+body.light-theme .new-chat-btn:hover,
+body.light-theme .analytics-btn:hover {
   background: rgba(0,0,0,0.05);
 }
 

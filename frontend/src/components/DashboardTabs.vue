@@ -71,6 +71,8 @@
               <thead>
                 <tr>
                   <th>Wertpapier</th>
+                  <th>Typ</th>
+                  <th>Land</th>
                   <th>Anteile</th>
                   <th>Kaufwert</th>
                   <th>Akt. Wert</th>
@@ -81,6 +83,8 @@
               <tbody>
                 <tr v-for="(pos, idx) in store.positions" :key="idx">
                   <td class="col-name">{{ pos.Wertpapier }} <span class="ticker">{{ pos.Ticker }}</span></td>
+                  <td><span class="badge">{{ pos.Typ || '-' }}</span></td>
+                  <td>{{ pos.Region || '-' }}</td>
                   <td>{{ pos.St_Nom.toFixed(2) }}</td>
                   <td>{{ formatCurrency(pos.Kaufwert) }}</td>
                   <td>{{ formatCurrency(pos.Akt_Wert) }}</td>

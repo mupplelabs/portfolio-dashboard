@@ -20,9 +20,10 @@ def search_ticker_by_isin(isin: str) -> str | None:
         pass
     return None
 
-def fetch_live_prices(df: pd.DataFrame, fmp_key: str = "") -> tuple[list, list]:
+def fetch_live_prices(df: pd.DataFrame, fmp_key: str = "") -> tuple[list, list, list]:
     live_prices = []
     updated_tickers = []
+    metadata = []
     
     for i, row in df.iterrows():
         ticker = row.get('Ticker', '')
@@ -40,6 +41,7 @@ def fetch_live_prices(df: pd.DataFrame, fmp_key: str = "") -> tuple[list, list]:
                 
         t = str(ticker).strip()
         price = None
+        meta = {'Typ': 'Unbekannt', 'Branche': 'Unbekannt', 'Region': 'Unbekannt'}
         
         # FMP Logic
         if fmp_key:
@@ -53,23 +55,47 @@ def fetch_live_prices(df: pd.DataFrame, fmp_key: str = "") -> tuple[list, list]:
             except Exception:
                 pass
                 
-        # yfinance Fallback
-        if price is None:
-            try:
-                ticker_obj = yf.Ticker(t)
+        # yfinance Fallback & Metadata Fetch
+        try:
+            ticker_obj = yf.Ticker(t)
+            
+            # 1. Fetch Metadata (always done via yfinance for now)
+            full_info = ticker_obj.info
+            raw_type = full_info.get('quoteType') or 'Unbekannt'
+            
+            # Map quoteType to German
+            typ_mapping = {
+                'EQUITY': 'Aktie',
+                'ETF': 'ETF',
+                'MUTUALFUND': 'Fonds',
+                'CRYPTOCURRENCY': 'Krypto',
+                'CURRENCY': 'Währung'
+            }
+            mapped_type = typ_mapping.get(raw_type.upper(), raw_type)
+            
+            meta = {
+                'Typ': mapped_type,
+                'Branche': full_info.get('sector') or 'Unbekannt',
+                'Region': full_info.get('country') or 'Unbekannt'
+            }
+            
+            # 2. Fetch Price if FMP failed or is absent
+            if price is None:
                 info = ticker_obj.fast_info
                 price = info.get('lastPrice', None)
                 if price is None or price == 0:
                     hist = ticker_obj.history(period="1d")
                     if not hist.empty:
                         price = hist['Close'].iloc[-1]
-            except Exception:
-                pass
-                
+        except Exception as e:
+            print(f"Error fetching metadata/price for {t}: {e}")
+            pass
+            
         live_prices.append(price)
         updated_tickers.append(ticker)
+        metadata.append(meta)
         
-    return live_prices, updated_tickers
+    return live_prices, updated_tickers, metadata
 
 def berechne_portfolio_metriken(df: pd.DataFrame, live_data_fetched: bool = False) -> tuple[float, float, float, list]:
     if df.empty:
@@ -119,6 +145,9 @@ def berechne_portfolio_metriken(df: pd.DataFrame, live_data_fetched: bool = Fals
             "Ticker": str(row.get('Ticker', '')),
             "ISIN": str(row.get('ISIN', '')),
             "WKN": str(row.get('WKN', '')),
+            "Typ": str(row.get('Typ', 'Unbekannt')),
+            "Branche": str(row.get('Branche', 'Unbekannt')),
+            "Region": str(row.get('Region', 'Unbekannt')),
             "St_Nom": st_nom,
             "Kaufwert": kaufwert_pos,
             "Avg_Kaufkurs": avg_kaufkurs,

@@ -1,0 +1,4 @@
+# Domain Blacklist für RAG Pipeline
+# Suchergebnisse von diesen Domains werden ignoriert
+goldreporter.de
+bild.de

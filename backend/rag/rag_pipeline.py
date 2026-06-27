@@ -39,8 +39,26 @@ async def run_rag_search(query: str, use_reranker: bool = False, status_callback
         
     def do_search():
         with DDGS() as ddgs:
-            # Hole Top 3 Links
-            return list(ddgs.text(query, max_results=3))
+            # Hole mehr als 3, da einige durch die Blacklist fliegen könnten
+            raw_results = list(ddgs.text(query, max_results=10))
+            
+            # Blacklist laden
+            blacklist = []
+            try:
+                with open("domain_blacklist.txt", "r") as f:
+                    blacklist = [line.strip() for line in f if line.strip() and not line.startswith("#")]
+            except FileNotFoundError:
+                pass
+                
+            filtered = []
+            for r in raw_results:
+                url = r['href']
+                if not any(bad_domain in url for bad_domain in blacklist):
+                    filtered.append(r)
+                    if len(filtered) == 3:
+                        break
+                        
+            return filtered
             
     try:
         results = await asyncio.to_thread(do_search)
@@ -118,26 +136,40 @@ async def run_rag_search(query: str, use_reranker: bool = False, status_callback
             pairs = [[query, chunks[i]] for i in top_k_idx]
             rerank_scores = reranker.predict(pairs)
             
-            # Top 4 nach Re-Ranking
-            top_final = min(4, len(top_k_idx))
-            best_local_idx = np.argsort(rerank_scores)[-top_final:]
+            # Sortiere Indices nach Re-Ranker Score (schlechtester zuerst, bester am Ende)
+            best_local_idx = np.argsort(rerank_scores)
             return [top_k_idx[i] for i in best_local_idx]
             
         try:
-            final_top_idx = await asyncio.to_thread(apply_reranker)
+            final_top_idx_all = await asyncio.to_thread(apply_reranker)
         except Exception as e:
             return f"Fehler beim Re-Ranking: {str(e)}"
     else:
-        # Ohne Re-Ranker: Nimm einfach die besten 4 aus der Vektorsuche
-        top_final = min(4, len(final_top_idx))
-        final_top_idx = final_top_idx[-top_final:]
+        # Ohne Re-Ranker: Behalte die volle Liste der Vektorsuche (ist bereits sortiert nach Score, am Ende sind die besten)
+        final_top_idx_all = final_top_idx
+        
+    # === URL Deduplizierung (Max 1 Chunk pro URL) ===
+    deduped_top_idx = []
+    seen_urls = set()
+    # final_top_idx_all hat den schlechtesten Score zuerst und den besten am Ende
+    for idx in reversed(final_top_idx_all):
+        url = sources[idx]
+        if url not in seen_urls:
+            seen_urls.add(url)
+            deduped_top_idx.append(idx)
+            if len(deduped_top_idx) == 4: # Wir wollen die besten 4
+                break
+                
+    # Da wir in umgekehrter Reihenfolge iteriert haben (best first), ist die Liste jetzt "best first".
+    # Wir iterieren unten nochmal drüber, also behalten wir es so.
+    final_top_idx = deduped_top_idx
         
     if status_callback:
         await status_callback(f"✅ RAG-Kontext erfolgreich zusammengestellt.")
         
     # Kontext zusammenbauen (bestes Ergebnis zuerst)
     context = ""
-    for rank, idx in enumerate(reversed(final_top_idx)):
+    for rank, idx in enumerate(final_top_idx):
         context += f"\n[Quelle {rank+1} - {sources[idx]}]:\n{chunks[idx]}\n"
         
     return context

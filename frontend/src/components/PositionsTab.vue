@@ -91,8 +91,9 @@
           <tr>
             <th>Wertpapier</th>
             <th>ISIN</th>
-            <th>WKN</th>
             <th>Ticker</th>
+            <th>Typ</th>
+            <th>Region</th>
             <th>Stück</th>
             <th>Kaufwert (€)</th>
             <th>Akt. Wert</th>
@@ -102,17 +103,20 @@
         </thead>
         <tbody>
           <tr v-for="(pos, idx) in store.positions" :key="idx" :class="{ 'row-success': pos._refreshSuccess }">
-            <td>
+            <td :data-tooltip="pos.Wertpapier" data-tooltip-pos="bottom">
               <input class="inline-edit" v-model="pos.Wertpapier" @change="store.updateMetrics()" />
             </td>
-            <td>
+            <td :data-tooltip="pos.ISIN" data-tooltip-pos="bottom">
               <input class="inline-edit badge-input" v-model="pos.ISIN" placeholder="ISIN..." @change="store.updateMetrics()" />
             </td>
-            <td>
-              <input class="inline-edit badge-input" v-model="pos.WKN" placeholder="WKN..." @change="store.updateMetrics()" />
-            </td>
-            <td>
+            <td :data-tooltip="pos.Ticker" data-tooltip-pos="bottom">
               <input class="inline-edit badge-input" v-model="pos.Ticker" @change="store.updateMetrics()" />
+            </td>
+            <td :data-tooltip="pos.Typ" data-tooltip-pos="bottom">
+              <input class="inline-edit badge-input" v-model="pos.Typ" placeholder="Typ..." @change="store.updateMetrics()" />
+            </td>
+            <td :data-tooltip="pos.Region" data-tooltip-pos="bottom">
+              <input class="inline-edit badge-input" v-model="pos.Region" placeholder="Region..." @change="store.updateMetrics()" />
             </td>
             <td>
               <input type="number" step="any" class="inline-edit number-input" v-model="pos.St_Nom" @input="recalcRowLocally(pos)" @change="store.updateMetrics()" />
@@ -154,7 +158,10 @@ const defaultPos = {
   Aktueller_Kurs: 0,
   St_Nom: 0,
   Kaufwert: 0,
-  Orderkost: 0
+  Orderkost: 0,
+  Typ: 'Unbekannt',
+  Branche: 'Unbekannt',
+  Region: 'Unbekannt'
 }
 
 const newPos = ref({ ...defaultPos })
@@ -178,6 +185,9 @@ const searchTicker = async () => {
     newPos.value.Wertpapier = data.Wertpapier
     newPos.value.Aktueller_Kurs = data.Aktueller_Kurs
     newPos.value.Waehrung = data.Waehrung
+    newPos.value.Typ = data.Typ || 'Unbekannt'
+    newPos.value.Branche = data.Branche || 'Unbekannt'
+    newPos.value.Region = data.Region || 'Unbekannt'
   } catch(e) {
     searchError.value = e.message
   } finally {
@@ -192,6 +202,9 @@ const addPosition = async () => {
     Ticker: newPos.value.Ticker,
     ISIN: newPos.value.ISIN || '',
     WKN: newPos.value.WKN || '',
+    Typ: newPos.value.Typ || 'Unbekannt',
+    Branche: newPos.value.Branche || 'Unbekannt',
+    Region: newPos.value.Region || 'Unbekannt',
     St_Nom: parseFloat(newPos.value.St_Nom),
     Kaufwert: parseFloat(newPos.value.Kaufwert),
     Kaufpreis: parseFloat(newPos.value.Kaufwert),

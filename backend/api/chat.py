@@ -7,6 +7,9 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from prompts import get_summary_prompt
 from pydantic import BaseModel
 
+from agent.router import analyze_intent
+from rag.rag_pipeline import run_rag_search
+from token_db import insert_usage, get_usage_timeline
 router = APIRouter()
 
 class ChatSummaryRequest(BaseModel):
@@ -143,93 +146,130 @@ async def websocket_chat_endpoint(websocket: WebSocket):
             research_ai_model = build_model(research_provider, research_model_name, research_api_key, base_url)
 
             try:
+                # Aktualisiere Web-Search Einstellungen auf dem bestehenden deps Objekt
+                deps.use_deep_search = use_deep_search
+                deps.use_reranker = use_reranker
+                deps.market_context = ""
+                
                 # Sende initiales Status-Update
                 await websocket.send_json({"type": "thinking_start"})
                 
-                # --- Pre-Search Logik (Agent 1) ---
-                search_context = ""
-                from agent.research_agent import research_agent, ResearchDeps
-                from pydantic_ai import Agent
+                # === 1. Semantic Routing ===
+                import asyncio
+                route = await asyncio.to_thread(analyze_intent, user_message)
                 
-                # 1. Router: Brauchen wir Research?
-                router_agent = Agent(
-                    model=research_ai_model,
-                    output_type=str,
-                    system_prompt=(
-                        "Entscheide, ob zur Beantwortung der User-Frage eine Internetrecherche (z.B. nach aktuellen News, "
-                        "Hintergrundinformationen zu bestimmten Firmen/Produkten) oder aktuelle Live-Kurse (Börsen-Ticker) nötig sind. "
-                        "Antworte exakt nur mit dem Wort 'True', wenn eine externe Recherche hilfreich wäre, ansonsten exakt mit 'False'."
+                # === 2. Research Pipeline (falls nötig) ===
+                if route == "research_needed" and use_deep_search:
+                    await websocket.send_json({"type": "status", "text": "🎯 Router: Websuche erforderlich."})
+                    async def send_rag_status(msg: str):
+                        await websocket.send_json({"type": "status", "text": msg})
+                        
+                    research_briefing = await run_rag_search(
+                        query=user_message,
+                        use_reranker=use_reranker,
+                        status_callback=send_rag_status
                     )
-                )
+                    deps.market_context = research_briefing
+                    await websocket.send_json({"type": "status", "text": "✅ Research Briefing generiert. Berate Portfolio..."})
+                elif route == "portfolio_only":
+                    await websocket.send_json({"type": "status", "text": "🎯 Router: Lokale Portfolio-Daten ausreichend."})
+                else:
+                    await websocket.send_json({"type": "status", "text": "Analysiere Anfrage..."})
                 
-                await websocket.send_json({"type": "thinking", "text": "🤔 Prüfe ob externe Recherche nötig ist..."})
-                try:
-                    router_prompt = f"User: {user_message}"
-                    if deps.has_portfolio_loaded:
-                        router_prompt += f"\n\nPortfolio Kontext:\n{deps.portfolio_summary}"
-                        
-                    route_result = await router_agent.run(router_prompt)
-                    
-                    # Parse boolean from string response to avoid forced tool_choice compatibility issues
-                    result_str = route_result.output.strip().lower()
-                    needs_research = "true" in result_str
-                    
-                    if needs_research:
-                        await websocket.send_json({"type": "thinking", "text": "🔎 Aktiviere Research Agent für Informationsbeschaffung..."})
-                        
-                        research_prompt = user_message
-                        if deps.has_portfolio_loaded:
-                            research_prompt += f"\n\nPortfolio Kontext:\n{deps.portfolio_summary}"
-                            
-                        # Baue Research Dependencies für Status Callbacks
-                        res_deps = ResearchDeps(
-                            status_callback=send_status,
-                            use_deep_search=use_deep_search,
-                            use_reranker=use_reranker
-                        )
-                        
-                        research_result = await research_agent.run(
-                            research_prompt,
-                            model=research_ai_model,
-                            deps=res_deps,
-                            model_settings={'max_tokens': 4000}
-                        )
-                        
-                        result_text = research_result.output
-                        if "Keine Recherche nötig" not in result_text:
-                            if use_deep_search:
-                                search_context = f"\n\n[SYSTEM-HINWEIS: Ein lokales RAG-System hat zusammen mit dem Research-Agenten folgende topaktuelle Fakten extrahiert. Nutze sie zwingend für deine Antwort und belege deine Aussagen zwingend mit den bereitgestellten Zitationen (inklusive der URLs als sichtbare Markdown-Links wie [Beispiel](https://...)):]\n{result_text}\n[ENDE SYSTEM-HINWEIS]"
-                            else:
-                                search_context = f"\n\n[SYSTEM-HINWEIS: Ein interner Research-Agent hat folgende topaktuelle Fakten für dich recherchiert. Nutze sie zwingend für deine Antwort und belege deine Aussagen zwingend mit den bereitgestellten Zitationen (inklusive der URLs als sichtbare Markdown-Links wie [Beispiel](https://...)):]\n{result_text}\n[ENDE SYSTEM-HINWEIS]"
-                    else:
-                        await websocket.send_json({"type": "thinking", "text": "ℹ️ Keine externe Websuche nötig."})
-                        
-                except Exception as e:
-                    await websocket.send_json({"type": "error", "text": str(e)})
-                    continue
-                
-                final_prompt = user_message + search_context
+                final_prompt = user_message
                 
                 await websocket.send_json({"type": "thinking_done"})
-                await websocket.send_json({"type": "status", "text": "Generiere finales Gutachten..."})
 
-                # Agent asynchron mit Stream ausführen, model dynamisch übergeben
-                async with portfolio_agent.run_stream(
-                    final_prompt,
-                    deps=deps,
-                    message_history=message_history,
-                    model=ai_model,
-                    model_settings={'max_tokens': 8192}
-                ) as result:
-                    async for chunk in result.stream_text(delta=True):
-                        # Sende den Chunk sofort via WebSocket ans Frontend
-                        await websocket.send_json({"type": "chunk", "text": chunk})
-                
-                # Speichere die neuen Nachrichten im Kontext für die nächste Frage
-                message_history = result.new_messages()
-                
-                # Sende End-Signal
-                await websocket.send_json({"type": "done"})
+                # Agent asynchron mit iter() ausführen für feingranulares Streaming
+                try:
+                    async with portfolio_agent.iter(
+                        final_prompt,
+                        deps=deps,
+                        message_history=message_history,
+                        model=ai_model,
+                        model_settings={'max_tokens': 4096}
+                    ) as agent_run:
+                        async for node in agent_run:
+                            if not hasattr(node, "stream"):
+                                continue
+
+                            async with node.stream(agent_run.ctx) as streamed:
+                                async for event in streamed:
+                                    event_name = type(event).__name__
+
+                                    # ── Deltas (live streaming) ──────────────────────────────
+                                    if event_name == "PartDeltaEvent":
+                                        delta = event.delta
+                                        if type(delta).__name__ == "TextPartDelta":
+                                            content = getattr(delta, 'content_delta', '')
+                                            if content:
+                                                await websocket.send_json({"type": "chunk", "text": content})
+
+                                    # ── Part Start (erster Buchstabe) ────────────────────────
+                                    elif event_name == "PartStartEvent":
+                                        part = getattr(event, 'part', None)
+                                        if part:
+                                            ptype = type(part).__name__
+                                            if ptype == "TextPart":
+                                                content = getattr(part, 'content', '')
+                                                if content:
+                                                    await websocket.send_json({"type": "chunk", "text": content})
+                                                    
+                                    # ── Part vollständig angekommen ──────────────────────────
+                                    elif event_name == "PartEndEvent":
+                                        part = event.part
+                                        ptype = type(part).__name__
+
+                                        if ptype == "ToolCallPart":
+                                            # Signal an Frontend: Den bisherigen Text in die Denk-Blase verschieben!
+                                            await websocket.send_json({
+                                                "type": "shift_to_thinking", 
+                                                "tool": getattr(part, 'tool_name', 'tool')
+                                            })
+                                        elif ptype == "TextPart":
+                                            # Sende den kompletten, validierten Textblock als Überschreibung,
+                                            # um verlorene Deltas zu korrigieren!
+                                            content = getattr(part, 'content', '')
+                                            if content:
+                                                await websocket.send_json({"type": "replace", "text": content})
+
+                                    # ── Tool-Ergebnis ────────────────────────────────────────
+                                    elif event_name == "FunctionToolResultEvent":
+                                        # Optional: Ein kleines Status-Update, dass das Tool fertig ist
+                                        # await websocket.send_json({"type": "status", "text": f"✅ Daten geladen."})
+                                        pass
+                    
+                    # Speichere die neuen Nachrichten im Kontext für die nächste Frage
+                    message_history = agent_run.result.new_messages()
+                    
+                    # Token Tracking
+                    usage = agent_run.result.usage()
+                    if usage:
+                        import asyncio
+                        asyncio.create_task(asyncio.to_thread(
+                            insert_usage, 
+                            provider, 
+                            model_name, 
+                            usage.request_tokens, 
+                            usage.response_tokens
+                        ))
+                    
+                    # Sende End-Signal
+                    await websocket.send_json({"type": "done"})
+                except Exception as e:
+                    error_msg = str(e)
+                    if "503" in error_msg or "Service Unavailable" in error_msg:
+                        user_error = "Fehler: Die KI-Schnittstelle (Provider) ist momentan überlastet (HTTP 503). Bitte versuche es in ein paar Sekunden erneut."
+                    elif "429" in error_msg or "Too Many Requests" in error_msg:
+                        user_error = "Fehler: Du hast das Rate-Limit des KI-Providers erreicht (HTTP 429). Bitte warte kurz."
+                    elif "400" in error_msg or "Invalid api_key" in error_msg:
+                        user_error = "Fehler: Der API-Key ist ungültig oder abgelaufen (HTTP 400). Bitte überprüfe die Einstellungen."
+                    else:
+                        user_error = f"Fehler bei der KI-Generierung: {error_msg}"
+                        
+                    await websocket.send_json({"type": "error", "text": user_error})
+                    # Wichtig: done senden, damit das Frontend nicht im 'waiting' Status hängt
+                    await websocket.send_json({"type": "done"})
                 
             except WebSocketDisconnect:
                 print("Client hat die Verbindung während der Generierung abgebrochen.")
@@ -248,6 +288,13 @@ async def websocket_chat_endpoint(websocket: WebSocket):
     except WebSocketDisconnect:
         print("Client disconnected")
 
+@router.get("/api/tokens/stats")
+async def get_token_stats(unit: str = 'week', offset: int = 0):
+    """Returns the aggregated token usage stats for timeline."""
+    import asyncio
+    stats = await asyncio.to_thread(get_usage_timeline, unit, offset)
+    return {"stats": stats}
+
 class TitleGenerationRequest(BaseModel):
     chat_content: str
     provider: str = "Google Gemini"
@@ -259,6 +306,8 @@ class TitleGenerationRequest(BaseModel):
 async def generate_chat_title(req: TitleGenerationRequest):
     from pydantic_ai import Agent
     from llm_factory import get_llm_model
+    from agent.router import analyze_intent
+    from rag.rag_pipeline import run_rag_search
     
     title_agent = Agent(
         system_prompt="Du bist ein Editor für Finanz-Reports. Generiere für den folgenden Text eine sehr kurze, prägnante Überschrift (maximal 6 Wörter, keine Satzzeichen am Ende, kein Markdown).",

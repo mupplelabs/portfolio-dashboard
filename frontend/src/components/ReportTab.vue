@@ -120,7 +120,7 @@ const generateReport = async () => {
         message_history: store.chatHistory,
         provider: store.llmSettings.provider,
         model: store.llmSettings.model,
-        apiKey: store.llmSettings.apiKey,
+        apiKey: store.llmSettings.apiKeys[store.llmSettings.provider] || '',
         baseUrl: store.llmSettings.baseUrl
       })
     })
