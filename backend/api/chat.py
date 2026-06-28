@@ -253,15 +253,17 @@ async def websocket_chat_endpoint(websocket: WebSocket):
                     message_history = agent_run.result.new_messages()
                     
                     # Token Tracking
-                    usage = agent_run.result.usage
+                    usage = getattr(agent_run.result, 'usage', None)
                     if usage:
+                        req_tokens = getattr(usage, 'request_tokens', getattr(usage, 'requests', getattr(usage, 'prompt_tokens', 0)))
+                        res_tokens = getattr(usage, 'response_tokens', getattr(usage, 'responses', getattr(usage, 'completion_tokens', 0)))
                         import asyncio
                         asyncio.create_task(asyncio.to_thread(
                             insert_usage, 
                             provider, 
                             model_name, 
-                            usage.request_tokens, 
-                            usage.response_tokens
+                            req_tokens, 
+                            res_tokens
                         ))
                     
                     # Sende End-Signal
