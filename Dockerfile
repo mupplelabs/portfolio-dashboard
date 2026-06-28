@@ -30,6 +30,9 @@ RUN if [ "$INSTALL_RAG" = "true" ] && [ -f requirements-rag.txt ]; then \
 # Copy the backend code
 COPY backend/ .
 
+# Ensure the data directory exists
+RUN mkdir -p data
+
 # Copy the built frontend from Stage 1 into the backend's static directory
 COPY --from=frontend-builder /app/frontend/dist /app/static
 
