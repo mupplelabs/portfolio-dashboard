@@ -3,6 +3,13 @@
     <div class="header">
       <h2>📈 Backtesting Modul</h2>
       <p>Simuliere, wie sich dein aktuelles Portfolio in der Vergangenheit geschlagen hätte. Wir nehmen deine aktuelle prozentuale Allokation und investieren virtuell dein gewähltes Startkapital am Anfang des Zeitraums.</p>
+      
+      <div class="api-warning" style="margin-top: 1rem; padding: 1rem; background-color: rgba(234, 179, 8, 0.1); border-left: 4px solid #eab308; border-radius: 4px;">
+        <h4 style="margin: 0 0 0.5rem 0; color: #eab308; font-size: 0.95rem;">ℹ️ Hinweis zur Datenqualität (Europäische Investmentfonds)</h4>
+        <p style="margin: 0; font-size: 0.85rem; color: var(--text-secondary);">
+          Für manche aktiv gemanagten europäischen Fonds (z.B. Deka, Union Investment) stellen kostenlose APIs (wie Yahoo Finance) oft keine vollständigen Historien zur Verfügung. Das optionale <strong>EODHD-Fallback</strong> kann diese Lücke schließen, ist in der kostenlosen Variante aber meist auf <strong>1 Jahr Historie</strong> beschränkt. Bei längeren Zeiträumen kann die Simulation für diese Fonds daher Lücken aufweisen oder verfälscht sein. Nutze den untenstehenden <strong>Expertenmodus</strong>, um die genauen Zeitreihen zu prüfen.
+        </p>
+      </div>
     </div>
 
     <!-- 1. Konfiguration -->
@@ -87,6 +94,39 @@
         <h3>Wachstumsverlauf</h3>
         <div id="backtestPlot" class="plotly-chart"></div>
       </div>
+      
+      <!-- 4. Experten-Modus -->
+      <div class="expert-mode-container" style="margin-top: 2rem; border-top: 1px solid var(--border-color); padding-top: 1rem;">
+        <label class="toggle-label" style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-weight: bold; color: var(--accent);">
+          <input type="checkbox" v-model="showExpertMode" />
+          🤓 Expertenmodus: Rohdaten anzeigen
+        </label>
+        
+        <div v-if="showExpertMode" class="table-container" style="margin-top: 1rem;">
+          <p class="hint-text" style="margin-bottom: 1rem;">Hier siehst du die simulierten absoluten Werte (in €) pro Einzelposition im Zeitverlauf. Dies entspricht dem gewichteten Anteil am Startkapital multipliziert mit der jeweiligen Kursentwicklung.</p>
+          <div style="overflow-x: auto; max-height: 400px; overflow-y: auto;">
+            <table class="data-table" style="width: 100%; white-space: nowrap;">
+              <thead style="position: sticky; top: 0; background: var(--bg-card); z-index: 1;">
+                <tr>
+                  <th>Datum</th>
+                  <th v-for="col in expertColumns" :key="col">{{ col }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="row in expertTableData" :key="row.date">
+                  <td>{{ row.date }}</td>
+                  <td v-for="col in expertColumns" :key="col">
+                    {{ row[col] !== undefined ? formatCurrency(row[col]) : '-' }}
+                  </td>
+                </tr>
+                <tr v-if="expertTableData.length === 0">
+                  <td :colspan="expertColumns.length + 1" class="empty-state">Keine Daten verfügbar</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -102,6 +142,7 @@ const benchmark_name = ref('S&P 500')
 const isLoading = ref(false)
 const error = ref(null)
 const results = ref(null)
+const showExpertMode = ref(false)
 
 const benchmark_map = {
   "S&P 500": "^GSPC",
@@ -128,6 +169,32 @@ const bm_endwert = computed(() => {
 
 const bm_return_pct = computed(() => {
   return bm_endwert.value ? ((bm_endwert.value / startkapital.value) - 1.0) * 100 : 0
+})
+
+const expertColumns = computed(() => {
+  if (!results.value || !results.value.assets_history) return []
+  return Object.keys(results.value.assets_history).sort()
+})
+
+const expertTableData = computed(() => {
+  if (!results.value || !results.value.assets_history) return []
+  const hist = results.value.assets_history
+  
+  // Collect all unique dates
+  const dateSet = new Set()
+  Object.values(hist).forEach(series => {
+    Object.keys(series).forEach(date => dateSet.add(date))
+  })
+  
+  const sortedDates = Array.from(dateSet).sort((a, b) => b.localeCompare(a)) // descending
+  
+  return sortedDates.map(date => {
+    const row = { date }
+    expertColumns.value.forEach(col => {
+      row[col] = hist[col][date]
+    })
+    return row
+  })
 })
 
 const runSimulation = async () => {

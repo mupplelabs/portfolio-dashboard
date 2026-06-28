@@ -80,3 +80,10 @@ def get_setting(key: str) -> str:
         cursor.execute("SELECT value FROM settings WHERE key = ?", (key,))
         row = cursor.fetchone()
         return row["value"] if row else ""
+
+def get_decrypted_setting(key: str) -> str:
+    val = get_setting(key)
+    if val and "api_key" in key.lower():
+        return decrypt_api_key(val)
+    return val
+

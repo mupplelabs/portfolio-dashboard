@@ -55,7 +55,40 @@ def init_db():
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         ''')
+        # 4. Asset Metadata Cache Table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS asset_metadata_cache (
+                ticker TEXT PRIMARY KEY,
+                typ TEXT,
+                branche TEXT,
+                region TEXT,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
         
+        conn.commit()
+
+def get_cached_metadata(ticker: str) -> dict | None:
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT typ, branche, region FROM asset_metadata_cache WHERE ticker = ?", (ticker,))
+        row = cursor.fetchone()
+        if row:
+            return {'Typ': row['typ'], 'Branche': row['branche'], 'Region': row['region']}
+    return None
+
+def set_cached_metadata(ticker: str, typ: str, branche: str, region: str):
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
+            INSERT INTO asset_metadata_cache (ticker, typ, branche, region, updated_at) 
+            VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(ticker) DO UPDATE SET 
+                typ=excluded.typ, 
+                branche=excluded.branche, 
+                region=excluded.region,
+                updated_at=CURRENT_TIMESTAMP
+        ''', (ticker, typ, branche, region))
         conn.commit()
 
 if __name__ == "__main__":
