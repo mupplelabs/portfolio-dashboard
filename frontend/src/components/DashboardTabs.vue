@@ -63,8 +63,17 @@
         
         <div v-if="store.portfolioLoaded" class="dashboard-content-split">
           <!-- Asset Allocation Pie Chart -->
-          <div class="chart-container glass-dark" id="portfolio-pie-chart">
-            <!-- Plotly mounts here -->
+          <div class="chart-container glass-dark">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+              <h3 style="margin: 0; font-size: 1.1rem; color: var(--text-main);">Asset Allocation</h3>
+              <select v-model="pieChartGroupBy" style="padding: 0.3rem 0.5rem; border-radius: 4px; border: 1px solid var(--border-color); background: var(--bg-card); color: var(--text-main);">
+                <option value="Wertpapier">Nach Wertpapier</option>
+                <option value="Typ">Nach Typ</option>
+                <option value="Region">Nach Region</option>
+                <option value="Branche">Nach Branche</option>
+              </select>
+            </div>
+            <div id="portfolio-pie-chart" style="width: 100%; height: 350px;"></div>
           </div>
           
           <!-- Positions Table -->
@@ -141,8 +150,10 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch, nextTick } from 'vue'
+import { ref, computed, nextTick, watch, onMounted } from 'vue'
 import { store } from '../store.js'
+
+const pieChartGroupBy = ref('Wertpapier')
 import ReportTab from './ReportTab.vue'
 import DividendsTab from './DividendsTab.vue'
 import BacktestingTab from './BacktestingTab.vue'
@@ -226,7 +237,7 @@ const executeUpload = async (mode) => {
   }
 }
 
-watch([() => store.positions, activeTab, () => store.theme], ([newPositions, newTab, newTheme]) => {
+watch([() => store.positions, activeTab, () => store.theme, pieChartGroupBy], ([newPositions, newTab, newTheme, newGroup]) => {
   if (newTab === 'overview' && store.portfolioLoaded && newPositions.length > 0) {
     nextTick(() => renderCharts())
   }
@@ -236,8 +247,23 @@ const renderCharts = () => {
   if (!window.Plotly || store.positions.length === 0) return
   
   // 1. Asset Allocation Pie Chart
-  const labels = store.positions.map(p => p.Wertpapier)
-  const values = store.positions.map(p => p.Akt_Wert)
+  const groupBy = pieChartGroupBy.value
+  let labels = []
+  let values = []
+  
+  if (groupBy === 'Wertpapier') {
+    labels = store.positions.map(p => p.Wertpapier)
+    values = store.positions.map(p => p.Akt_Wert)
+  } else {
+    const grouped = {}
+    store.positions.forEach(p => {
+      const key = p[groupBy] || 'Unbekannt'
+      if (!grouped[key]) grouped[key] = 0
+      grouped[key] += p.Akt_Wert
+    })
+    labels = Object.keys(grouped)
+    values = Object.values(grouped)
+  }
   
   const tracePie = {
     values: values,
@@ -245,12 +271,12 @@ const renderCharts = () => {
     type: 'pie',
     hole: 0.4,
     marker: {
-      colors: ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4']
+      colors: ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#14b8a6', '#f43f5e', '#eab308']
     }
   }
   
   const layoutPie = {
-    title: 'Asset Allocation',
+    title: '',
     paper_bgcolor: 'rgba(0,0,0,0)',
     plot_bgcolor: 'rgba(0,0,0,0)',
     font: { color: store.theme === 'light' ? '#1e293b' : '#f8fafc' },
