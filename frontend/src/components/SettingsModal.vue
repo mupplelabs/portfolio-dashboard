@@ -238,7 +238,7 @@ watch(() => props.show, (newVal) => {
   }
 })
 
-const saveSettings = () => {
+const saveSettings = async () => {
   store.llmSettings.provider = settings.provider
   store.llmSettings.model = settings.model
   store.llmSettings.apiKeys = { ...settings.apiKeys }
@@ -248,21 +248,13 @@ const saveSettings = () => {
   store.llmSettings.researchProvider = settings.researchProvider
   store.llmSettings.researchModel = settings.researchModel
   
-  localStorage.setItem('llm_provider', settings.provider)
-  localStorage.setItem('llm_model', settings.model)
-  localStorage.setItem('llm_api_key_google', settings.apiKeys['Google Gemini'] || '')
-  localStorage.setItem('llm_api_key_anthropic', settings.apiKeys['Anthropic Claude'] || '')
-  localStorage.setItem('llm_api_key_openai', settings.apiKeys['OpenAI / Local'] || '')
-  localStorage.setItem('llm_base_url', settings.baseUrl)
-  localStorage.setItem('llm_use_deep_search', settings.useDeepSearch)
-  localStorage.setItem('llm_use_reranker', settings.useReranker)
-  localStorage.setItem('llm_research_provider', settings.researchProvider)
-  localStorage.setItem('llm_research_model', settings.researchModel)
+  await store.saveSettingsToDB(settings)
   
   emit('close')
 }
 
-const resetSettings = () => {
+const resetSettings = async () => {
+  // Clear old localStorage if it still exists
   localStorage.removeItem('llm_provider')
   localStorage.removeItem('llm_model')
   localStorage.removeItem('llm_api_key_google')
@@ -292,6 +284,8 @@ const resetSettings = () => {
   settings.useReranker = store.llmSettings.useReranker
   settings.researchProvider = store.llmSettings.researchProvider
   settings.researchModel = store.llmSettings.researchModel
+  
+  await store.saveSettingsToDB(settings)
   
   emit('close')
 }

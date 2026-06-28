@@ -11,11 +11,24 @@ from fastapi.responses import FileResponse
 env_path = Path(__file__).resolve().parent.parent / '.env'
 load_dotenv(dotenv_path=env_path)
 
+from contextlib import asynccontextmanager
+
+import database
+import token_db
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup: Initialize databases
+    database.init_db()
+    token_db.init_db()
+    yield
+    # Shutdown logic can go here if needed
 
 app = FastAPI(
     title="Portfolio Analyse API",
     description="Backend API for the Portfolio Analysis Dashboard",
-    version="1.0.0"
+    version="1.0.0",
+    lifespan=lifespan
 )
 
 # CORS configuration - allowing the Vite dev server
@@ -44,9 +57,11 @@ def get_config():
 from api.portfolio import router as portfolio_router
 from api.chat import router as chat_router
 from api.models import router as models_router
+from api.settings import router as settings_router
 
 app.include_router(portfolio_router, prefix="/api/portfolio")
 app.include_router(models_router, prefix="/api/models")
+app.include_router(settings_router, prefix="/api/settings")
 app.include_router(chat_router) # WebSockets don't strictly need an api prefix if they define it
 
 # --- Frontend Serving ---

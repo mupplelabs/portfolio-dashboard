@@ -6,6 +6,8 @@ import csv
 import re
 
 from services.data_service import fetch_live_prices, berechne_portfolio_metriken
+from database import get_db_connection
+import sqlite3
 
 router = APIRouter()
 
@@ -103,8 +105,89 @@ def map_columns(df: pd.DataFrame) -> pd.DataFrame:
             df[req] = '' if req in ['Wertpapier', 'Ticker', 'ISIN'] else 0.0
     return df
 
+def save_portfolio_to_db(df: pd.DataFrame, mode: str):
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        
+        if mode == "overwrite":
+            cursor.execute("DELETE FROM positions")
+            cursor.execute("DELETE FROM transactions")
+            
+        for _, row in df.iterrows():
+            ticker = str(row.get("Ticker", "")).strip()
+            if not ticker:
+                continue
+                
+            name = str(row.get("Wertpapier", "")).strip()
+            isin = str(row.get("ISIN", "")).strip()
+            shares = float(row.get("St_Nom", 0.0))
+            kaufwert = float(row.get("Kaufpreis", 0.0))
+            avg_buy_price = kaufwert / shares if shares > 0 else 0.0
+            
+            # Upsert logic to handle merging
+            cursor.execute("""
+                INSERT INTO positions (ticker, name, isin, shares, avg_buy_price)
+                VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(ticker) DO UPDATE SET 
+                    shares = positions.shares + excluded.shares,
+                    avg_buy_price = CASE 
+                        WHEN (positions.shares + excluded.shares) > 0 THEN 
+                            ((positions.shares * positions.avg_buy_price) + (excluded.shares * excluded.avg_buy_price)) / (positions.shares + excluded.shares)
+                        ELSE 0 
+                    END
+            """, (ticker, name, isin, shares, avg_buy_price))
+            
+        conn.commit()
+
+@router.get("/", response_model=PortfolioMetrics)
+async def get_portfolio():
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM positions")
+        rows = cursor.fetchall()
+        
+    if not rows:
+        return PortfolioMetrics(gesamtwert=0.0, gesamt_gewinn=0.0, performance_prozent=0.0, positions=[])
+        
+    df_data = []
+    for r in rows:
+        df_data.append({
+            "Ticker": r["ticker"],
+            "Wertpapier": r["name"],
+            "ISIN": r["isin"],
+            "St_Nom": r["shares"],
+            "Kaufpreis": r["shares"] * r["avg_buy_price"],
+            "Wert": 0.0,
+            "Orderkost": 0.0
+        })
+        
+    df = pd.DataFrame(df_data)
+    
+    # Live Preise fetchen
+    live_prices, updated_tickers, metadata = fetch_live_prices(df)
+    df['Live_Kurs'] = live_prices
+    df['Ticker'] = updated_tickers
+    df['Typ'] = [m.get('Typ', 'Unbekannt') for m in metadata]
+    df['Branche'] = [m.get('Branche', 'Unbekannt') for m in metadata]
+    df['Region'] = [m.get('Region', 'Unbekannt') for m in metadata]
+    
+    df['Live_Kurs'] = pd.to_numeric(df['Live_Kurs'], errors='coerce')
+    df['Live_Gesamtwert'] = df.apply(
+        lambda row: row['St_Nom'] * row['Live_Kurs'] if pd.notna(row['Live_Kurs']) and row['Live_Kurs'] > 0 else 0.0,
+        axis=1
+    )
+    
+    gesamtwert, gewinn, performance, positions = berechne_portfolio_metriken(df, live_data_fetched=True)
+    
+    return PortfolioMetrics(
+        gesamtwert=gesamtwert,
+        gesamt_gewinn=gewinn,
+        performance_prozent=performance,
+        positions=positions
+    )
+
 @router.post("/metrics", response_model=PortfolioMetrics)
-async def get_portfolio_metrics(file: UploadFile = File(...)):
+async def get_portfolio_metrics(mode: str = "overwrite", file: UploadFile = File(...)):
     if not file.filename.lower().endswith('.csv'):
         raise HTTPException(status_code=400, detail="Only CSV files are supported")
         
@@ -133,12 +216,12 @@ async def get_portfolio_metrics(file: UploadFile = File(...)):
                     
         gesamtwert, gewinn, performance, positions = berechne_portfolio_metriken(df, live_data_fetched=True)
         
-        return PortfolioMetrics(
-            gesamtwert=gesamtwert,
-            gesamt_gewinn=gewinn,
-            performance_prozent=performance,
-            positions=positions
-        )
+        # In Datenbank speichern
+        save_portfolio_to_db(df, mode)
+        
+        # We don't just return the df from the CSV anymore. 
+        # Since it might have been merged with existing DB rows, it's safer to just fetch the whole DB portfolio and return it!
+        return await get_portfolio()
     except Exception as e:
         import traceback
         traceback.print_exc()
@@ -320,6 +403,7 @@ async def calculate_metrics_from_json(req: CalculateMetricsRequest):
     df = pd.DataFrame(req.positions) if req.positions else pd.DataFrame()
     
     if df.empty:
+        save_portfolio_to_db(df, mode="overwrite")
         return PortfolioMetrics(gesamtwert=0.0, gesamt_gewinn=0.0, performance_prozent=0.0, positions=[])
     
     # Ensure datatypes
@@ -367,6 +451,9 @@ async def calculate_metrics_from_json(req: CalculateMetricsRequest):
             df['Wert'] = df['Akt_Wert']
         
     gesamtwert, gewinn, performance, positions = berechne_portfolio_metriken(df, live_data_fetched=True)
+    
+    # Änderungen in der UI in der DB speichern (Overwrite, da wir den gesamten neuen Stand vom Frontend bekommen)
+    save_portfolio_to_db(df, mode="overwrite")
     
     return PortfolioMetrics(
         gesamtwert=gesamtwert,

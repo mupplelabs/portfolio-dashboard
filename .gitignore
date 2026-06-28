@@ -39,7 +39,10 @@ backend/static/
 
 # Scratch & Old Scripts
 _scratch/
+scratch/
+test_*.py
 
 # Databases
 *.db
+backend/data/*.db
 *.sqlite3

@@ -20,8 +20,15 @@ class ChatSummaryRequest(BaseModel):
     apiKey: str = ""
     baseUrl: str = "http://localhost:11434/v1"
 
+from api.settings import get_api_key_for_provider
+
 @router.post("/api/chat/summary")
 async def generate_chat_summary(req: ChatSummaryRequest):
+    # Fetch API key from DB if missing or masked
+    api_key = req.apiKey
+    if not api_key or api_key in ["sk-***", "AIza***", "***"]:
+        api_key = get_api_key_for_provider(req.provider)
+        
     # Convert dict history to PydanticAI message objects if needed,
     # but actually we can just format it as a big text block for the summary.
     history_text = ""
@@ -31,25 +38,25 @@ async def generate_chat_summary(req: ChatSummaryRequest):
         
     ai_model = 'google:gemini-2.5-flash' # Default
     if req.provider == "Anthropic Claude":
-        if req.apiKey:
+        if api_key:
             from pydantic_ai.providers.anthropic import AnthropicProvider
             from pydantic_ai.models.anthropic import AnthropicModel
-            custom_provider = AnthropicProvider(api_key=req.apiKey)
+            custom_provider = AnthropicProvider(api_key=api_key)
             ai_model = AnthropicModel(req.model, provider=custom_provider)
         else:
             ai_model = f"anthropic:{req.model}"
     elif req.provider == "Google Gemini":
-        if req.apiKey:
+        if api_key:
             from pydantic_ai.providers.google import GoogleProvider
             from pydantic_ai.models.google import GoogleModel
-            custom_provider = GoogleProvider(api_key=req.apiKey)
+            custom_provider = GoogleProvider(api_key=api_key)
             ai_model = GoogleModel(req.model, provider=custom_provider)
         else:
             ai_model = f"google:{req.model}"
     elif req.provider == "OpenAI / Local":
         from pydantic_ai.providers.openai import OpenAIProvider
         from pydantic_ai.models.openai import OpenAIChatModel
-        local_key = req.apiKey if req.apiKey else "dummy"
+        local_key = api_key if api_key else "dummy"
         custom_provider = OpenAIProvider(base_url=req.baseUrl, api_key=local_key)
         ai_model = OpenAIChatModel(req.model, provider=custom_provider)
         
@@ -125,6 +132,9 @@ async def websocket_chat_endpoint(websocket: WebSocket):
             # PydanticAI unterstützt alle drei Provider nativ!
             # Helper Funktion um PydanticAI Model-Objekte zu generieren
             def build_model(prov, mod_name, key, url):
+                if not key or key in ["sk-***", "AIza***", "***"]:
+                    key = get_api_key_for_provider(prov)
+                    
                 if prov == "Anthropic Claude":
                     if key:
                         os.environ["ANTHROPIC_API_KEY"] = key

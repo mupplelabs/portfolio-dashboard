@@ -35,7 +35,10 @@
           </div>
         </div>
         
-        <p v-if="!store.portfolioLoaded && !store.isUploading" class="empty-state">
+        <p v-if="store.isLoadingPortfolio" class="loading-state">
+          Lade Portfolio vom Server... ⏳
+        </p>
+        <p v-else-if="!store.portfolioLoaded && !store.isUploading" class="empty-state">
           Bitte lade ein Bank-CSV hoch, um die Analyse zu starten.
         </p>
         <p v-if="store.isUploading" class="loading-state">
@@ -199,25 +202,18 @@ const executeUpload = async (mode) => {
   pendingFile = null
   
   try {
-    const res = await fetch('/api/portfolio/metrics', {
+    const res = await fetch(`/api/portfolio/metrics?mode=${mode === 'append' ? 'merge' : 'overwrite'}`, {
       method: 'POST',
       body: formData
     })
     
     if (res.ok) {
       const data = await res.json()
-      
-      if (mode === 'append') {
-        store.positions = [...store.positions, ...(data.positions || [])]
-        // Since we appended, we need to recalculate overall metrics via the backend
-        await store.updateMetrics()
-      } else {
-        store.metrics.gesamtwert = data.gesamtwert
-        store.metrics.gesamt_gewinn = data.gesamt_gewinn
-        store.metrics.performance_prozent = data.performance_prozent
-        store.positions = data.positions || []
-        store.portfolioLoaded = true
-      }
+      store.metrics.gesamtwert = data.gesamtwert
+      store.metrics.gesamt_gewinn = data.gesamt_gewinn
+      store.metrics.performance_prozent = data.performance_prozent
+      store.positions = data.positions || []
+      store.portfolioLoaded = true
     } else {
       const errText = await res.text()
       alert(`Fehler beim Upload der CSV: ${errText}`)

@@ -2,6 +2,7 @@ import { reactive } from 'vue'
 
 export const store = reactive({
   portfolioLoaded: false,
+  isLoadingPortfolio: true,
   isUploading: false,
   metrics: {
     gesamtwert: 0,
@@ -15,18 +16,18 @@ export const store = reactive({
   analysisMode: 'standard',
   
   llmSettings: {
-    provider: localStorage.getItem('llm_provider') || 'Google Gemini',
-    model: localStorage.getItem('llm_model') || 'gemini-2.5-flash',
+    provider: 'Google Gemini',
+    model: 'gemini-2.5-flash',
     apiKeys: {
-      'Google Gemini': localStorage.getItem('llm_api_key_google') || localStorage.getItem('llm_api_key') || '',
-      'Anthropic Claude': localStorage.getItem('llm_api_key_anthropic') || '',
-      'OpenAI / Local': localStorage.getItem('llm_api_key_openai') || ''
+      'Google Gemini': '',
+      'Anthropic Claude': '',
+      'OpenAI / Local': ''
     },
-    baseUrl: localStorage.getItem('llm_base_url') || '', // Wird später durch backendConfig ergänzt, falls leer
-    useDeepSearch: localStorage.getItem('llm_use_deep_search') === 'true',
-    useReranker: localStorage.getItem('llm_use_reranker') === 'true',
-    researchProvider: localStorage.getItem('llm_research_provider') || 'Google Gemini',
-    researchModel: localStorage.getItem('llm_research_model') || 'gemini-2.5-flash'
+    baseUrl: '',
+    useDeepSearch: false,
+    useReranker: false,
+    researchProvider: 'Google Gemini',
+    researchModel: 'gemini-2.5-flash'
   },
   
   backendConfig: null,
@@ -42,6 +43,75 @@ export const store = reactive({
       }
     } catch (e) {
       console.error('Failed to fetch backend config', e)
+    }
+  },
+  
+  async fetchPortfolio() {
+    this.isLoadingPortfolio = true
+    try {
+      const res = await fetch('/api/portfolio/')
+      if (res.ok) {
+        const data = await res.json()
+        if (data && data.positions && data.positions.length > 0) {
+          this.metrics.gesamtwert = data.gesamtwert
+          this.metrics.gesamt_gewinn = data.gesamt_gewinn
+          this.metrics.performance_prozent = data.performance_prozent
+          this.positions = data.positions || []
+          this.portfolioLoaded = true
+        } else {
+          this.portfolioLoaded = false
+        }
+      }
+    } catch (e) {
+      console.error('Failed to fetch portfolio from DB', e)
+      this.portfolioLoaded = false
+    } finally {
+      this.isLoadingPortfolio = false
+    }
+  },
+  
+  async fetchSettings() {
+    try {
+      const res = await fetch('/api/settings/')
+      if (res.ok) {
+        const data = await res.json()
+        if (data.google_api_key) this.llmSettings.apiKeys['Google Gemini'] = data.google_api_key
+        if (data.anthropic_api_key) this.llmSettings.apiKeys['Anthropic Claude'] = data.anthropic_api_key
+        if (data.openai_api_key) this.llmSettings.apiKeys['OpenAI / Local'] = data.openai_api_key
+        if (data.provider) this.llmSettings.provider = data.provider
+        if (data.model) this.llmSettings.model = data.model
+        if (data.base_url) this.llmSettings.baseUrl = data.base_url
+        if (data.use_deep_search) this.llmSettings.useDeepSearch = data.use_deep_search === 'true'
+        if (data.use_reranker) this.llmSettings.useReranker = data.use_reranker === 'true'
+        if (data.research_provider) this.llmSettings.researchProvider = data.research_provider
+        if (data.research_model) this.llmSettings.researchModel = data.research_model
+      }
+    } catch (e) {
+      console.error('Failed to fetch settings from DB', e)
+    }
+  },
+
+  async saveSettingsToDB(settings) {
+    const payload = {
+      google_api_key: settings.apiKeys['Google Gemini'] || '',
+      anthropic_api_key: settings.apiKeys['Anthropic Claude'] || '',
+      openai_api_key: settings.apiKeys['OpenAI / Local'] || '',
+      provider: settings.provider,
+      model: settings.model,
+      base_url: settings.baseUrl || '',
+      use_deep_search: settings.useDeepSearch ? 'true' : 'false',
+      use_reranker: settings.useReranker ? 'true' : 'false',
+      research_provider: settings.researchProvider,
+      research_model: settings.researchModel
+    }
+    try {
+      await fetch('/api/settings/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ settings: payload })
+      })
+    } catch (e) {
+      console.error('Failed to save settings to DB', e)
     }
   },
   

@@ -8,8 +8,8 @@ services:
     container_name: investiq
     ports:
       - "8080:8000"
-    # volumes:
-    #   - .:/app  # Disable volume mount in production so the built container code runs
+    volumes:
+      - ./backend/data:/app/data
     env_file:
       - .env
     environment:

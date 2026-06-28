@@ -51,11 +51,13 @@ import { store } from './store.js'
 
 const showSettings = ref(false)
 
-onMounted(() => {
+onMounted(async () => {
   if (store.theme === 'light') {
     document.body.classList.add('light-theme')
   }
-  store.fetchBackendConfig()
+  await store.fetchBackendConfig()
+  await store.fetchSettings()
+  await store.fetchPortfolio()
 })
 
 // Resizable Sidebar Logic

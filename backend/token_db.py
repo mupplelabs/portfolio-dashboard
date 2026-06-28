@@ -3,7 +3,7 @@ import os
 from datetime import datetime, timedelta
 import calendar
 
-DB_PATH = os.path.join(os.path.dirname(__file__), "tokens.db")
+DB_PATH = os.path.join(os.path.dirname(__file__), "data", "tokens.db")
 
 def init_db():
     conn = sqlite3.connect(DB_PATH)
