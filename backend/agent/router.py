@@ -1,6 +1,7 @@
 import os
 try:
-    from semantic_router import Route, RouteLayer
+    from semantic_router import Route
+    from semantic_router.layer import RouteLayer
     from semantic_router.encoders import HuggingFaceEncoder
 except ImportError as e:
     import traceback
@@ -58,9 +59,9 @@ else :
     route_layer = RouteLayer(encoder=encoder, routes=[research_route, portfolio_route])
 
     def analyze_intent(user_input: str) -> str:
-    """
-    Nimmt den Nutzer-Input und gibt den Namen der Route zurück.
-    Gibt None zurück, wenn keine Route passt (Fallback).
-    """
-    route = route_layer(user_input)
-    return route.name if route else None
+        """
+        Nimmt den Nutzer-Input und gibt den Namen der Route zurück.
+        Gibt None zurück, wenn keine Route passt (Fallback).
+        """
+        route = route_layer(user_input)
+        return route.name if route else None
