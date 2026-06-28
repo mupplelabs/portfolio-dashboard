@@ -30,11 +30,12 @@ def migrate_env_keys_to_db():
         for key, val in env_keys.items():
             if val:
                 cursor.execute("SELECT value FROM settings WHERE key = ?", (key,))
-                if not cursor.fetchone():
+                row = cursor.fetchone()
+                if not row or not row[0]:
                     if "api_key" in key:
-                        cursor.execute("INSERT INTO settings (key, value) VALUES (?, ?)", (key, encrypt_api_key(val)))
+                        cursor.execute("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (key, encrypt_api_key(val)))
                     else:
-                        cursor.execute("INSERT INTO settings (key, value) VALUES (?, ?)", (key, val))
+                        cursor.execute("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (key, val))
         conn.commit()
 
 @asynccontextmanager
