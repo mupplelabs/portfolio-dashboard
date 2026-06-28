@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from database import get_db_connection
+from security import encrypt_api_key, decrypt_api_key
 
 router = APIRouter()
 
@@ -22,7 +23,7 @@ def get_settings():
                 # Mask API keys for frontend, but keep providers/models visible
                 if "api_key" in key.lower() and val:
                     # Provide a masked version to indicate it exists
-                    settings_dict[key] = "sk-***" if val.startswith("sk-") else "AIza***" if val.startswith("AIza") else "***"
+                    settings_dict[key] = "sk-***" if "sk-" in val or decrypt_api_key(val).startswith("sk-") else "AIza***" if "AIza" in val or decrypt_api_key(val).startswith("AIza") else "***"
                 else:
                     settings_dict[key] = val
                     
@@ -39,6 +40,10 @@ def update_settings(payload: SettingsUpdate):
                 # If the frontend sends back a masked key, we ignore it and keep the existing one in DB
                 if value in ["sk-***", "AIza***", "***"]:
                     continue
+                    
+                # Encrypt API keys before storing
+                if "api_key" in key.lower() and value:
+                    value = encrypt_api_key(value)
                     
                 cursor.execute(
                     "INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
@@ -65,4 +70,6 @@ def get_api_key_for_provider(provider_name: str) -> str:
             
         cursor.execute("SELECT value FROM settings WHERE key = ?", (key_name,))
         row = cursor.fetchone()
-        return row["value"] if row else ""
+        if row and row["value"]:
+            return decrypt_api_key(row["value"])
+        return ""

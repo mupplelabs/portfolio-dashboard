@@ -11,3 +11,4 @@ reportlab
 python-multipart
 plotly
 kaleido
+cryptography
