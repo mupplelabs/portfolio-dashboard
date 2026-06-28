@@ -109,6 +109,15 @@
         </div>
       </div>
     </div>
+    
+    <div v-else class="empty-state" style="margin-top: 3rem;">
+      <p style="font-size: 1.1rem; color: var(--text-secondary); margin-bottom: 1.5rem;">
+        Klicke auf "Aktualisieren", um die aktuellen Dividenden-Daten für dein Portfolio abzurufen.
+      </p>
+      <button class="btn-primary" @click="fetchData" style="font-size: 1.1rem; padding: 0.8rem 1.5rem;">
+        🔄 Jetzt Dividenden-Daten abrufen
+      </button>
+    </div>
   </div>
 </template>
 
@@ -228,13 +237,6 @@ const formatNumber = (val) => {
   return new Intl.NumberFormat('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(val)
 }
 
-onMounted(() => {
-  fetchData()
-})
-
-watch(() => store.positions, () => {
-  fetchData()
-})
 
 watch(() => store.theme, () => {
   nextTick(() => {
