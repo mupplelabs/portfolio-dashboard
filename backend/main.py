@@ -15,12 +15,40 @@ from contextlib import asynccontextmanager
 
 import database
 import token_db
+from api.settings import get_api_key_for_provider, get_setting
+from security import encrypt_api_key
+
+def migrate_env_keys_to_db():
+    env_keys = {
+        "google_api_key": os.environ.get("GOOGLE_API_KEY"),
+        "anthropic_api_key": os.environ.get("ANTHROPIC_API_KEY"),
+        "openai_api_key": os.environ.get("LOCAL_LLM_KEY"),
+        "base_url": os.environ.get("LOCAL_LLM_URL")
+    }
+    with database.get_db_connection() as conn:
+        cursor = conn.cursor()
+        for key, val in env_keys.items():
+            if val:
+                cursor.execute("SELECT value FROM settings WHERE key = ?", (key,))
+                if not cursor.fetchone():
+                    if "api_key" in key:
+                        cursor.execute("INSERT INTO settings (key, value) VALUES (?, ?)", (key, encrypt_api_key(val)))
+                    else:
+                        cursor.execute("INSERT INTO settings (key, value) VALUES (?, ?)", (key, val))
+        conn.commit()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup: Initialize databases
     database.init_db()
     token_db.init_db()
+    
+    # Optional .env import into DB
+    try:
+        migrate_env_keys_to_db()
+    except Exception as e:
+        print(f"Failed to migrate env keys: {e}")
+        
     yield
     # Shutdown logic can go here if needed
 
@@ -47,10 +75,10 @@ def health_check():
 @app.get("/api/config")
 def get_config():
     return {
-        "has_google_key": bool(os.environ.get("GOOGLE_API_KEY")),
-        "has_anthropic_key": bool(os.environ.get("ANTHROPIC_API_KEY")),
-        "has_local_key": bool(os.environ.get("LOCAL_LLM_KEY")),
-        "local_llm_url": os.environ.get("LOCAL_LLM_URL", "")
+        "has_google_key": bool(get_api_key_for_provider("Google Gemini")),
+        "has_anthropic_key": bool(get_api_key_for_provider("Anthropic Claude")),
+        "has_local_key": bool(get_api_key_for_provider("OpenAI / Local")),
+        "local_llm_url": get_setting("base_url")
     }
 
 # We will mount routers here later

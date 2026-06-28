@@ -73,3 +73,10 @@ def get_api_key_for_provider(provider_name: str) -> str:
         if row and row["value"]:
             return decrypt_api_key(row["value"])
         return ""
+
+def get_setting(key: str) -> str:
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT value FROM settings WHERE key = ?", (key,))
+        row = cursor.fetchone()
+        return row["value"] if row else ""
