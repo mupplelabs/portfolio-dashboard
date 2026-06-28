@@ -26,7 +26,7 @@
         <div class="form-group">
           <label>API Key</label>
           <input type="password" v-model="settings.apiKeys[settings.provider]" :placeholder="apiKeyPlaceholder" :class="{'input-warning': !hasBackendKey && !settings.apiKeys[settings.provider] && settings.provider !== 'OpenAI / Local'}" />
-          <small>Wird lokal im Browser gespeichert.</small>
+          <small>Wird sicher verschlüsselt in der Datenbank gespeichert.</small>
         </div>
         
         <div class="form-group">
