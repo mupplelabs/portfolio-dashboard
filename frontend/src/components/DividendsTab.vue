@@ -73,6 +73,41 @@
           </tbody>
         </table>
       </div>
+      
+      <!-- 4. Experten-Modus (Rohdaten) -->
+      <div class="expert-mode-container" style="margin-top: 2rem; border-top: 1px solid var(--border-color); padding-top: 1rem;">
+        <label class="toggle-label" style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-weight: bold; color: var(--accent);">
+          <input type="checkbox" v-model="showExpertMode" />
+          🤓 Expertenmodus: Rohdaten anzeigen
+        </label>
+        
+        <div v-if="showExpertMode" class="table-container" style="margin-top: 1rem;">
+          <p class="hint-text" style="margin-bottom: 1rem;">Hier siehst du alle erfassten historischen Dividenden-Ereignisse der API, die als Basis für die Berechnungen dienen.</p>
+          <div style="overflow-x: auto; max-height: 400px; overflow-y: auto;">
+            <table class="data-table" style="width: 100%; white-space: nowrap;">
+              <thead style="position: sticky; top: 0; background: var(--bg-card); z-index: 1;">
+                <tr>
+                  <th>Datum</th>
+                  <th>Wertpapier</th>
+                  <th>Ticker</th>
+                  <th>Dividende (pro Stück)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="row in sortedDivsHist" :key="row.Datum + row.Ticker">
+                  <td>{{ row.Datum }}</td>
+                  <td>{{ row.Name }}</td>
+                  <td>{{ row.Ticker }}</td>
+                  <td>{{ formatNumber(row.Dividende) }}</td>
+                </tr>
+                <tr v-if="sortedDivsHist.length === 0">
+                  <td colspan="4" class="empty-state">Keine Daten verfügbar</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -86,6 +121,11 @@ const error = ref(null)
 
 const divsData = ref([])
 const divsHist = ref([])
+const showExpertMode = ref(false)
+
+const sortedDivsHist = computed(() => {
+  return [...divsHist.value].sort((a, b) => b.Datum.localeCompare(a.Datum))
+})
 
 const divsPayers = computed(() => {
   return [...divsData.value]
@@ -194,7 +234,7 @@ onMounted(() => {
 
 watch(() => store.positions, () => {
   fetchData()
-}, { deep: true })
+})
 
 watch(() => store.theme, () => {
   nextTick(() => {

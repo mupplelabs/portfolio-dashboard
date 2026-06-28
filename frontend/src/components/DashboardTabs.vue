@@ -230,7 +230,7 @@ watch([() => store.positions, activeTab, () => store.theme], ([newPositions, new
   if (newTab === 'overview' && store.portfolioLoaded && newPositions.length > 0) {
     nextTick(() => renderCharts())
   }
-}, { deep: true, immediate: true })
+}, { immediate: true })
 
 const renderCharts = () => {
   if (!window.Plotly || store.positions.length === 0) return

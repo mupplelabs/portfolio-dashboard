@@ -131,7 +131,7 @@ const initTargets = () => {
 
 watch(() => store.positions, () => {
   initTargets()
-}, { deep: true })
+})
 
 watch(() => store.theme, () => {
   nextTick(() => {
