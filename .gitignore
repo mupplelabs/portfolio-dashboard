@@ -46,3 +46,7 @@ test_*.py
 *.db
 backend/data/*.db
 *.sqlite3
+
+# Jupyter Notebooks
+*.ipynb
+.ipynb_checkpoints/
