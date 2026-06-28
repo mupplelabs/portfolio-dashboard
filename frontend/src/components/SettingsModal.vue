@@ -216,7 +216,7 @@ watch([() => settings.provider, () => settings.apiKeys[settings.provider], () =>
   }, 500)
 })
 
-watch([() => settings.researchProvider, () => settings.apiKeys[settings.researchProvider], () => settings.baseUrl], () => {
+watch([() => settings.researchProvider, () => settings.apiKeys[settings.researchProvider], () => settings.baseUrl, () => settings.useDeepSearch], () => {
   clearTimeout(researchDebounceTimer)
   researchDebounceTimer = setTimeout(() => {
     fetchResearchModels()
