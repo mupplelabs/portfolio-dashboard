@@ -88,6 +88,22 @@
           </div>
         </div>
         
+        <hr style="border: 0; border-top: 1px solid var(--border-color); margin: 1.5rem 0 0.5rem 0;" />
+        <h3 style="margin-top: 0; color: var(--accent); font-size: 1.1rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem;">📈 Market Data Providers</h3>
+        
+        <div class="form-group checkbox-group">
+          <label class="checkbox-label" style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-weight: 600;">
+            <input type="checkbox" v-model="settings.useEodhd" style="width: 1.2rem; height: 1.2rem;" />
+            <span>Enable EODHD Fallback & Enrichment</span>
+          </label>
+          <small>Fügt EODHD (eodhd.com) als Fallback und für saubere Europa-Fonds Metadaten hinzu.</small>
+        </div>
+
+        <div class="form-group" v-if="settings.useEodhd" style="margin-left: 1.5rem; border-left: 2px solid var(--accent-color); padding-left: 1rem; margin-top: 1rem;">
+          <label>EODHD API Key</label>
+          <input type="password" v-model="settings.eodhdApiKey" placeholder="API Key (verschlüsselt in DB)" />
+        </div>
+        
       </div>
       
       <div class="modal-footer" style="display: flex; justify-content: space-between;">
@@ -116,7 +132,9 @@ const settings = reactive({
   useDeepSearch: store.llmSettings.useDeepSearch,
   useReranker: store.llmSettings.useReranker,
   researchProvider: store.llmSettings.researchProvider,
-  researchModel: store.llmSettings.researchModel
+  researchModel: store.llmSettings.researchModel,
+  eodhdApiKey: store.llmSettings.eodhdApiKey,
+  useEodhd: store.llmSettings.useEodhd
 })
 
 const availableModels = ref([])
@@ -221,7 +239,7 @@ watch([() => settings.researchProvider, () => settings.apiKeys[settings.research
   researchDebounceTimer = setTimeout(() => {
     fetchResearchModels()
   }, 500)
-})
+}, { immediate: true })
 
 watch(() => props.show, (newVal) => {
   if (newVal) {
@@ -233,6 +251,8 @@ watch(() => props.show, (newVal) => {
     settings.useReranker = store.llmSettings.useReranker
     settings.researchProvider = store.llmSettings.researchProvider
     settings.researchModel = store.llmSettings.researchModel
+    settings.eodhdApiKey = store.llmSettings.eodhdApiKey
+    settings.useEodhd = store.llmSettings.useEodhd
     fetchModels()
     fetchResearchModels()
   }
@@ -247,6 +267,8 @@ const saveSettings = async () => {
   store.llmSettings.useReranker = settings.useReranker
   store.llmSettings.researchProvider = settings.researchProvider
   store.llmSettings.researchModel = settings.researchModel
+  store.llmSettings.eodhdApiKey = settings.eodhdApiKey
+  store.llmSettings.useEodhd = settings.useEodhd
   
   await store.saveSettingsToDB(settings)
   
