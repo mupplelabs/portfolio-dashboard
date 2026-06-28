@@ -6,7 +6,8 @@ import csv
 import re
 
 from services.data_service import fetch_live_prices, berechne_portfolio_metriken
-from database import get_db_connection
+from api.settings import get_decrypted_setting, get_setting
+from database import get_db_connection, set_cached_metadata
 import sqlite3
 
 router = APIRouter()
@@ -32,6 +33,12 @@ class PortfolioMetrics(BaseModel):
     gesamt_gewinn: float
     performance_prozent: float
     positions: list[PortfolioPosition]
+
+class AssetMetadataUpdate(BaseModel):
+    ticker: str
+    typ: str = "Unbekannt"
+    branche: str = "Unbekannt"
+    region: str = "Unbekannt"
 
 def clean_number(val):
     if pd.isna(val):
@@ -138,6 +145,17 @@ def save_portfolio_to_db(df: pd.DataFrame, mode: str):
             """, (ticker, name, isin, shares, avg_buy_price))
             
         conn.commit()
+    return {"status": "success"}
+
+@router.post("/metadata")
+def update_asset_metadata(update: AssetMetadataUpdate):
+    try:
+        if not update.ticker:
+            raise HTTPException(status_code=400, detail="Ticker is required")
+        set_cached_metadata(update.ticker, update.typ, update.branche, update.region)
+        return {"status": "success", "message": f"Metadata for {update.ticker} updated successfully."}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/", response_model=PortfolioMetrics)
 async def get_portfolio():
@@ -163,8 +181,12 @@ async def get_portfolio():
         
     df = pd.DataFrame(df_data)
     
+    # EODHD Config
+    use_eodhd = get_setting("use_eodhd")
+    eodhd_key = get_decrypted_setting("eodhd_api_key") if use_eodhd == 'true' else ""
+    
     # Live Preise fetchen
-    live_prices, updated_tickers, metadata = fetch_live_prices(df)
+    live_prices, updated_tickers, metadata = fetch_live_prices(df, eodhd_key)
     df['Live_Kurs'] = live_prices
     df['Ticker'] = updated_tickers
     df['Typ'] = [m.get('Typ', 'Unbekannt') for m in metadata]
@@ -199,8 +221,12 @@ async def get_portfolio_metrics(mode: str = "overwrite", file: UploadFile = File
         for col in ['St_Nom', 'Wert', 'Orderkost', 'Kaufpreis']:
             df[col] = df[col].apply(clean_number)
             
+        # EODHD Config
+        use_eodhd = get_setting("use_eodhd")
+        eodhd_key = get_decrypted_setting("eodhd_api_key") if use_eodhd == 'true' else ""
+        
         # Fetch live prices for the uploaded CSV
-        live_prices, updated_tickers, metadata = fetch_live_prices(df)
+        live_prices, updated_tickers, metadata = fetch_live_prices(df, eodhd_key)
         df['Live_Kurs'] = live_prices
         df['Ticker'] = updated_tickers
         df['Typ'] = [m.get('Typ', 'Unbekannt') for m in metadata]
@@ -285,6 +311,7 @@ async def get_dividends(req: DividendRequest):
         df_data.append({
             "Wertpapier": p.Wertpapier,
             "Ticker": p.Ticker,
+            "ISIN": p.ISIN,
             "St_Nom": p.St_Nom,
             "Wert": p.Akt_Wert,
             "Live_Gesamtwert": p.Akt_Wert
@@ -292,7 +319,15 @@ async def get_dividends(req: DividendRequest):
     df = pd.DataFrame(df_data) if df_data else pd.DataFrame()
     
     from services.data_service import fetch_dividend_data
-    df_divs, df_hist = fetch_dividend_data(df)
+    from api.settings import get_decrypted_setting, get_setting
+    
+    use_eodhd = get_setting("use_eodhd")
+    eodhd_key = get_decrypted_setting("eodhd_api_key") if use_eodhd == 'true' else ""
+    
+    try:
+        df_divs, df_hist = fetch_dividend_data(df, eodhd_key)
+    except Exception as e:
+        return {"error": str(e)}
     
     if not df_hist.empty and 'Datum' in df_hist.columns:
         df_hist['Datum'] = df_hist['Datum'].astype(str)
@@ -315,6 +350,7 @@ async def run_backtest(req: BacktestRequest):
         df_data.append({
             "Wertpapier": p.Wertpapier,
             "Ticker": p.Ticker,
+            "ISIN": p.ISIN,
             "St_Nom": p.St_Nom,
             "Wert": p.Akt_Wert,
             "Live_Gesamtwert": p.Akt_Wert
@@ -322,9 +358,18 @@ async def run_backtest(req: BacktestRequest):
     df = pd.DataFrame(df_data) if df_data else pd.DataFrame()
     
     from services.data_service import calculate_backtest
-    pf_series, bm_series, pf_dd, bm_dd = calculate_backtest(
-        df, req.startkapital, req.period, req.benchmark_ticker
-    )
+    from api.settings import get_decrypted_setting, get_setting
+    
+    use_eodhd = get_setting("use_eodhd")
+    eodhd_key = get_decrypted_setting("eodhd_api_key") if use_eodhd == 'true' else ""
+
+    try:
+        if df.empty:
+            return {"error": "Portfolio ist leer"}
+            
+        pf_series, bm_series, pf_drawdown, bm_drawdown, df_hist = calculate_backtest(df, req.startkapital, req.period, eodhd_key, req.benchmark_ticker)
+    except Exception as e:
+        return {"error": str(e)}
     
     pf_dict = pf_series.to_dict() if not pf_series.empty else {}
     bm_dict = bm_series.to_dict() if not bm_series.empty else {}
@@ -332,19 +377,37 @@ async def run_backtest(req: BacktestRequest):
     pf_json = {str(k)[:10]: v for k, v in pf_dict.items()}
     bm_json = {str(k)[:10]: v for k, v in bm_dict.items()}
     
+    # Process df_hist to a dict of dicts: { "AAPL": { "2024-01-01": 100, ... } }
+    assets_history = {}
+    if not df_hist.empty:
+        for col in df_hist.columns:
+            series = df_hist[col].dropna()
+            if not series.empty:
+                assets_history[col] = {str(k)[:10]: v for k, v in series.to_dict().items()}
+    
     return {
         "portfolio": pf_json,
         "benchmark": bm_json,
-        "pf_drawdown": float(pf_dd),
-        "bm_drawdown": float(bm_dd)
+        "pf_drawdown": float(pf_drawdown),
+        "bm_drawdown": float(bm_drawdown),
+        "assets_history": assets_history
     }
 
 @router.get("/search")
 async def search_ticker(query: str):
     import yfinance as yf
-    from services.data_service import search_ticker_by_isin
+    from services.data_service import hybrid_search_by_isin
+    from api.settings import get_decrypted_setting, get_setting
     
-    ticker_symbol = search_ticker_by_isin(query) or query
+    use_eodhd = get_setting("use_eodhd")
+    eodhd_key = get_decrypted_setting("eodhd_api_key") if use_eodhd == 'true' else ""
+
+    # Check if query is an ISIN (12 chars, starts with 2 letters)
+    ticker_symbol = query
+    if len(query) == 12 and query[:2].isalpha():
+        found_ticker, _, _ = hybrid_search_by_isin(query, eodhd_key)
+        if found_ticker:
+            ticker_symbol = found_ticker
     try:
         t = yf.Ticker(ticker_symbol.strip())
         info = t.info

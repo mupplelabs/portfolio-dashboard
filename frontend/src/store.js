@@ -27,7 +27,9 @@ export const store = reactive({
     useDeepSearch: false,
     useReranker: false,
     researchProvider: 'Google Gemini',
-    researchModel: 'gemini-2.5-flash'
+    researchModel: 'gemini-2.5-flash',
+    eodhdApiKey: '',
+    useEodhd: false
   },
   
   backendConfig: null,
@@ -70,6 +72,24 @@ export const store = reactive({
     }
   },
   
+  async saveMetadata(pos) {
+    if (!pos.Ticker) return;
+    try {
+      await fetch('/api/portfolio/metadata', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ticker: pos.Ticker,
+          typ: pos.Typ || 'Unbekannt',
+          branche: pos.Branche || 'Unbekannt',
+          region: pos.Region || 'Unbekannt'
+        })
+      });
+    } catch (e) {
+      console.error("Failed to save metadata", e);
+    }
+  },
+  
   async fetchSettings() {
     try {
       const res = await fetch('/api/settings/')
@@ -85,6 +105,8 @@ export const store = reactive({
         if (data.use_reranker) this.llmSettings.useReranker = data.use_reranker === 'true'
         if (data.research_provider) this.llmSettings.researchProvider = data.research_provider
         if (data.research_model) this.llmSettings.researchModel = data.research_model
+        if (data.eodhd_api_key) this.llmSettings.eodhdApiKey = data.eodhd_api_key
+        if (data.use_eodhd) this.llmSettings.useEodhd = data.use_eodhd === 'true'
       }
     } catch (e) {
       console.error('Failed to fetch settings from DB', e)
@@ -102,7 +124,9 @@ export const store = reactive({
       use_deep_search: settings.useDeepSearch ? 'true' : 'false',
       use_reranker: settings.useReranker ? 'true' : 'false',
       research_provider: settings.researchProvider,
-      research_model: settings.researchModel
+      research_model: settings.researchModel,
+      eodhd_api_key: settings.eodhdApiKey || '',
+      use_eodhd: settings.useEodhd ? 'true' : 'false'
     }
     try {
       await fetch('/api/settings/', {

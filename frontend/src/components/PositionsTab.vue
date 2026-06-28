@@ -113,10 +113,10 @@
               <input class="inline-edit badge-input" v-model="pos.Ticker" @change="store.updateMetrics()" />
             </td>
             <td :data-tooltip="pos.Typ" data-tooltip-pos="bottom">
-              <input class="inline-edit badge-input" v-model="pos.Typ" placeholder="Typ..." @change="store.updateMetrics()" />
+              <input class="inline-edit badge-input" v-model="pos.Typ" placeholder="Typ..." @change="store.saveMetadata(pos); store.updateMetrics()" />
             </td>
             <td :data-tooltip="pos.Region" data-tooltip-pos="bottom">
-              <input class="inline-edit badge-input" v-model="pos.Region" placeholder="Region..." @change="store.updateMetrics()" />
+              <input class="inline-edit badge-input" v-model="pos.Region" placeholder="Region..." @change="store.saveMetadata(pos); store.updateMetrics()" />
             </td>
             <td>
               <input type="number" step="any" class="inline-edit number-input" v-model="pos.St_Nom" @input="recalcRowLocally(pos)" @change="store.updateMetrics()" />
