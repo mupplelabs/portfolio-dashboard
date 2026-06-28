@@ -21,10 +21,11 @@ WORKDIR /app
 COPY backend/requirements.txt backend/requirements-rag.txt* ./
 
 ARG INSTALL_RAG=false
+# Always install base requirements first to get the latest versions (like pydantic-ai)
+RUN pip install --no-cache-dir -r requirements.txt
+# Then install RAG requirements if requested (which may downgrade openai but leaves pydantic-ai intact)
 RUN if [ "$INSTALL_RAG" = "true" ] && [ -f requirements-rag.txt ]; then \
-      pip install --no-cache-dir -r requirements.txt -r requirements-rag.txt; \
-    else \
-      pip install --no-cache-dir -r requirements.txt; \
+      pip install --no-cache-dir -r requirements-rag.txt; \
     fi
 
 # Copy the backend code
